@@ -1,8 +1,10 @@
 const socket = io();
 
+const authScreen = document.getElementById("auth-screen");
 const joinScreen = document.getElementById("join-screen");
 const chatScreen = document.getElementById("chat-screen");
-const usernameInput = document.getElementById("username-input");
+const guestBtn = document.getElementById("guest-btn");
+const signedInAs = document.getElementById("signed-in-as");
 const roomInput = document.getElementById("room-input");
 const joinBtn = document.getElementById("join-btn");
 
@@ -19,18 +21,61 @@ const emojiPanel = document.getElementById("emoji-panel");
 let myUsername = "";
 let typingTimeout = null;
 
-// ---- Theme toggle ----
+// ---- Check auth status on page load ----
+async function checkAuth() {
+  try {
+    const res = await fetch("/api/me");
+    if (res.ok) {
+      const data = await res.json();
+      myUsername = data.username;
+      showJoinScreen();
+    } else {
+      showAuthScreen();
+    }
+  } catch (err) {
+    showAuthScreen();
+  }
+}
+
+function showAuthScreen() {
+  authScreen.classList.remove("hidden");
+  joinScreen.classList.add("hidden");
+  chatScreen.classList.add("hidden");
+}
+
+function showJoinScreen() {
+  authScreen.classList.add("hidden");
+  joinScreen.classList.remove("hidden");
+  chatScreen.classList.add("hidden");
+  signedInAs.textContent = `Signed in as ${myUsername}`;
+  roomInput.focus();
+}
+
+guestBtn.addEventListener("click", async () => {
+  try {
+    const res = await fetch("/api/guest", { method: "POST" });
+    const data = await res.json();
+    myUsername = data.username;
+    showJoinScreen();
+  } catch (err) {
+    alert("Could not start guest session. Please try again.");
+  }
+});
+
+checkAuth();
+
+// ---- Theme toggle (default = light aurora theme, toggle switches to dark) ----
 const savedTheme = localStorage.getItem("chat-theme");
-if (savedTheme === "light") {
-  document.body.classList.add("light-theme");
+if (savedTheme === "dark") {
+  document.body.classList.add("dark-theme");
   themeToggle.textContent = "☀️";
 }
 
 themeToggle.addEventListener("click", () => {
-  document.body.classList.toggle("light-theme");
-  const isLight = document.body.classList.contains("light-theme");
-  themeToggle.textContent = isLight ? "☀️" : "🌙";
-  localStorage.setItem("chat-theme", isLight ? "light" : "dark");
+  document.body.classList.toggle("dark-theme");
+  const isDark = document.body.classList.contains("dark-theme");
+  themeToggle.textContent = isDark ? "☀️" : "🌙";
+  localStorage.setItem("chat-theme", isDark ? "dark" : "light");
 });
 
 // ---- Emoji picker ----
@@ -56,20 +101,17 @@ document.addEventListener("click", (e) => {
   }
 });
 
-joinBtn.addEventListener("click", joinRoom);
-usernameInput.addEventListener("keydown", (e) => e.key === "Enter" && joinRoom());
-roomInput.addEventListener("keydown", (e) => e.key === "Enter" && joinRoom());
+// ---- Join room ----
+const joinForm = document.getElementById("join-form");
+joinForm.addEventListener("submit", (e) => {
+  e.preventDefault();
+  joinRoom();
+});
 
 function joinRoom() {
-  const username = usernameInput.value.trim();
   const room = roomInput.value.trim() || "general";
-  if (!username) {
-    usernameInput.focus();
-    return;
-  }
-  myUsername = username;
 
-  socket.emit("join_room", { username, room });
+  socket.emit("join_room", { username: myUsername, room });
 
   joinScreen.classList.add("hidden");
   chatScreen.classList.remove("hidden");
@@ -91,7 +133,10 @@ messageInput.addEventListener("input", () => {
 
 socket.on("room_history", (history) => {
   messagesEl.innerHTML = "";
-  history.forEach(renderMessage);
+  history.forEach((m) =>
+    renderMessage({ user: m.username, text: m.text, time: m.createdAt })
+  );
+  scrollToBottom();
 });
 
 socket.on("receive_message", (message) => {
