@@ -12,9 +12,49 @@ const messagesEl = document.getElementById("messages");
 const typingIndicator = document.getElementById("typing-indicator");
 const messageForm = document.getElementById("message-form");
 const messageInput = document.getElementById("message-input");
+const themeToggle = document.getElementById("theme-toggle");
+const emojiBtn = document.getElementById("emoji-btn");
+const emojiPanel = document.getElementById("emoji-panel");
 
 let myUsername = "";
 let typingTimeout = null;
+
+// ---- Theme toggle ----
+const savedTheme = localStorage.getItem("chat-theme");
+if (savedTheme === "light") {
+  document.body.classList.add("light-theme");
+  themeToggle.textContent = "☀️";
+}
+
+themeToggle.addEventListener("click", () => {
+  document.body.classList.toggle("light-theme");
+  const isLight = document.body.classList.contains("light-theme");
+  themeToggle.textContent = isLight ? "☀️" : "🌙";
+  localStorage.setItem("chat-theme", isLight ? "light" : "dark");
+});
+
+// ---- Emoji picker ----
+const EMOJIS = ["😀", "😂", "😍", "😎", "🤔", "😢", "😡", "👍", "👎", "🙏", "🔥", "🎉", "❤️", "💯", "😱", "🤝", "👀", "✅"];
+
+EMOJIS.forEach((emoji) => {
+  const span = document.createElement("span");
+  span.textContent = emoji;
+  span.addEventListener("click", () => {
+    messageInput.value += emoji;
+    messageInput.focus();
+  });
+  emojiPanel.appendChild(span);
+});
+
+emojiBtn.addEventListener("click", () => {
+  emojiPanel.classList.toggle("hidden");
+});
+
+document.addEventListener("click", (e) => {
+  if (!emojiPanel.contains(e.target) && e.target !== emojiBtn) {
+    emojiPanel.classList.add("hidden");
+  }
+});
 
 joinBtn.addEventListener("click", joinRoom);
 usernameInput.addEventListener("keydown", (e) => e.key === "Enter" && joinRoom());
