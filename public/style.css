@@ -282,6 +282,119 @@ h1 { margin: 1.5rem 0 0; font-size: 1.85rem; line-height: 1.15; font-weight: 800
 }
 .logout-link:hover { color: var(--text-main); text-decoration: underline; }
 
+.screen-links {
+  display: flex;
+  justify-content: center;
+  gap: 1.25rem;
+  margin-top: 0.5rem;
+}
+.screen-links .logout-link { margin-top: 0; }
+
+.error-text {
+  font-size: 0.8rem;
+  color: oklch(0.58 0.2 25);
+  margin-top: -0.5rem;
+}
+
+.divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  margin: 0.25rem 0;
+}
+.divider::before, .divider::after {
+  content: "";
+  flex: 1;
+  border-bottom: 1px solid var(--border-color);
+}
+.divider span { padding: 0 0.75rem; }
+
+.room-id-display {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  margin: 1.75rem 0;
+  padding: 1.25rem;
+  border-radius: calc(var(--radius) - 2px);
+  border: 1px dashed var(--border-color);
+  background: var(--bg-input);
+}
+#new-room-id {
+  font-size: 1.75rem;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+  color: var(--primary);
+}
+#copy-room-id {
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 1.2rem;
+  transition: transform 0.15s ease;
+}
+#copy-room-id:hover { transform: scale(1.15); }
+
+.card-wrap.wide { max-width: 34rem; }
+
+.username-row { display: flex; gap: 0.5rem; }
+.username-row .field-input { flex: 1; }
+.username-row .btn-outline { white-space: nowrap; padding-left: 1rem; padding-right: 1rem; }
+
+.rooms-heading {
+  margin-top: 1.75rem;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.rooms-list {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 14rem;
+  overflow-y: auto;
+}
+
+.room-list-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 0.8rem;
+  border-radius: calc(var(--radius) - 4px);
+  border: 1px solid var(--border-color);
+  background: var(--bg-input);
+  font-size: 0.85rem;
+}
+.room-list-id { font-weight: 700; letter-spacing: 0.05em; color: var(--primary); }
+.room-list-date { color: var(--text-muted); font-size: 0.75rem; flex: 1; }
+.room-view-btn, .room-rejoin-btn {
+  border: 1px solid var(--border-color);
+  background: var(--bg-panel);
+  color: var(--text-main);
+  border-radius: 6px;
+  padding: 0.3rem 0.6rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+.room-view-btn:hover, .room-rejoin-btn:hover { background: color-mix(in oklab, var(--text-main) 6%, transparent); }
+
+.room-messages-preview {
+  margin-top: 1rem;
+  padding: 0.75rem;
+  border-radius: calc(var(--radius) - 4px);
+  border: 1px solid var(--border-color);
+  max-height: 12rem;
+  overflow-y: auto;
+  font-size: 0.8rem;
+}
+.room-messages-preview h4 { margin-bottom: 0.5rem; font-size: 0.85rem; }
+.preview-line { margin-bottom: 0.35rem; line-height: 1.4; }
+
 /* ---------- Chat screen ---------- */
 #chat-screen {
   position: relative;

@@ -5,7 +5,14 @@ const userSchema = new mongoose.Schema({
   email: { type: String },
   displayName: { type: String }, // their real Google name, shown as a label
   username: { type: String, unique: true, required: true }, // permanent chat identity, e.g. User48213
+  joinedRooms: [
+    {
+      roomId: { type: String },
+      joinedAt: { type: Date, default: Date.now },
+    },
+  ],
   createdAt: { type: Date, default: Date.now },
 });
 
 module.exports = mongoose.model("User", userSchema);
+

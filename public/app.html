@@ -32,7 +32,7 @@
               <span class="brand-name">kothaa</span>
             </span>
             <h1>Welcome to Kothaa</h1>
-            <p class="sub">Sign in to keep your name and chat history, or jump in as a guest.</p>
+            <p class="sub">Sign in to keep your name, your rooms, and your chat history — or jump in as a guest.</p>
           </div>
 
           <div class="form">
@@ -45,15 +45,15 @@
 
           <div class="live field-in" style="animation-delay:420ms">
             <span class="live-dot"></span>
-            <span>1,240 rooms active today</span>
+            <span>No account needed to try it out</span>
           </div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Room join screen: shown after auth -->
-  <div id="join-screen" class="screen hidden">
+  <!-- Room choice screen: have an ID, or create a new room -->
+  <div id="room-choice-screen" class="screen hidden">
     <div class="card-wrap">
       <div class="glow-frame">
         <div class="card">
@@ -64,26 +64,106 @@
               </span>
               <span class="brand-name">kothaa</span>
             </span>
-            <h1>Join a Chatroom</h1>
+            <h1>Let's get you chatting</h1>
             <p id="signed-in-as" class="sub"></p>
           </div>
 
           <form id="join-form" class="form">
             <label class="field field-in" style="animation-delay:120ms">
-              <span class="field-label">Room name</span>
-              <input id="room-input" class="field-input" placeholder="e.g. general" maxlength="24" autocomplete="off" />
+              <span class="field-label">Have a room ID?</span>
+              <input id="room-input" class="field-input" placeholder="e.g. A7K9P2" maxlength="6" autocomplete="off" style="text-transform:uppercase" />
             </label>
+            <p id="join-error" class="error-text hidden"></p>
 
-            <button id="join-btn" type="submit" class="join-btn field-in" style="animation-delay:220ms">
+            <button id="join-btn" type="submit" class="join-btn field-in" style="animation-delay:200ms">
               <span class="join-btn-sheen" aria-hidden="true"></span>
               <span class="join-btn-inner">
                 <span class="btn-label">Join room</span>
                 <svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
               </span>
             </button>
+
+            <div class="divider field-in" style="animation-delay:260ms"><span>or</span></div>
+
+            <button id="create-room-btn" type="button" class="btn-outline field-in" style="animation-delay:320ms">Create a new room</button>
           </form>
 
-          <a href="/auth/logout" id="logout-link-join" class="logout-link field-in" style="animation-delay:320ms">Log out</a>
+          <div class="screen-links field-in" style="animation-delay:400ms">
+            <a href="#" id="profile-link" class="logout-link hidden">My profile</a>
+            <a href="/auth/logout" class="logout-link">Log out</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Room created screen: shows the new ID to copy and share -->
+  <div id="room-created-screen" class="screen hidden">
+    <div class="card-wrap">
+      <div class="glow-frame">
+        <div class="card">
+          <div class="card-head">
+            <span class="brand">
+              <span class="brand-icon badge-pulse">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22z"/></svg>
+              </span>
+              <span class="brand-name">kothaa</span>
+            </span>
+            <h1>Room created!</h1>
+            <p class="sub">Share this code with friends so they can join you.</p>
+          </div>
+
+          <div class="room-id-display field-in" style="animation-delay:120ms">
+            <span id="new-room-id">------</span>
+            <button id="copy-room-id" title="Copy">📋</button>
+          </div>
+
+          <button id="enter-room-btn" class="join-btn field-in" style="animation-delay:220ms">
+            <span class="join-btn-sheen" aria-hidden="true"></span>
+            <span class="join-btn-inner">
+              <span class="btn-label">Enter chat</span>
+              <svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+            </span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Profile screen: logged-in users only -->
+  <div id="profile-screen" class="screen hidden">
+    <div class="card-wrap wide">
+      <div class="glow-frame">
+        <div class="card">
+          <div class="card-head">
+            <span class="brand">
+              <span class="brand-icon badge-pulse">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22z"/></svg>
+              </span>
+              <span class="brand-name">kothaa</span>
+            </span>
+            <h1>My Profile</h1>
+          </div>
+
+          <div class="form">
+            <label class="field field-in" style="animation-delay:100ms">
+              <span class="field-label">Username</span>
+              <div class="username-row">
+                <input id="username-input" class="field-input" maxlength="24" />
+                <button id="save-username-btn" class="btn-outline">Save</button>
+              </div>
+              <p id="username-msg" class="error-text hidden"></p>
+            </label>
+          </div>
+
+          <h3 class="rooms-heading field-in" style="animation-delay:180ms">Past rooms</h3>
+          <div id="rooms-list" class="rooms-list field-in" style="animation-delay:220ms">
+            <p class="sub">No rooms yet — join or create one!</p>
+          </div>
+
+          <div id="room-messages-preview" class="room-messages-preview hidden"></div>
+
+          <button id="back-to-rooms-btn" class="btn-outline field-in" style="animation-delay:300ms">Back</button>
         </div>
       </div>
     </div>
@@ -104,6 +184,7 @@
       </div>
       <h3>Online</h3>
       <ul id="user-list"></ul>
+      <a href="#" id="back-to-choice-link" class="logout-link">Leave room</a>
       <a href="/auth/logout" class="logout-link sidebar-logout">Log out</a>
     </aside>
 

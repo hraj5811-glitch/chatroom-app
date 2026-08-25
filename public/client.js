@@ -1,13 +1,37 @@
 const socket = io();
 
+// Screens
 const authScreen = document.getElementById("auth-screen");
-const joinScreen = document.getElementById("join-screen");
+const roomChoiceScreen = document.getElementById("room-choice-screen");
+const roomCreatedScreen = document.getElementById("room-created-screen");
+const profileScreen = document.getElementById("profile-screen");
 const chatScreen = document.getElementById("chat-screen");
-const guestBtn = document.getElementById("guest-btn");
-const signedInAs = document.getElementById("signed-in-as");
-const roomInput = document.getElementById("room-input");
-const joinBtn = document.getElementById("join-btn");
 
+// Auth screen
+const guestBtn = document.getElementById("guest-btn");
+
+// Room choice screen
+const signedInAs = document.getElementById("signed-in-as");
+const joinForm = document.getElementById("join-form");
+const roomInput = document.getElementById("room-input");
+const joinError = document.getElementById("join-error");
+const createRoomBtn = document.getElementById("create-room-btn");
+const profileLink = document.getElementById("profile-link");
+
+// Room created screen
+const newRoomIdEl = document.getElementById("new-room-id");
+const copyRoomIdBtn = document.getElementById("copy-room-id");
+const enterRoomBtn = document.getElementById("enter-room-btn");
+
+// Profile screen
+const usernameInput = document.getElementById("username-input");
+const saveUsernameBtn = document.getElementById("save-username-btn");
+const usernameMsg = document.getElementById("username-msg");
+const roomsList = document.getElementById("rooms-list");
+const roomMessagesPreview = document.getElementById("room-messages-preview");
+const backToRoomsBtn = document.getElementById("back-to-rooms-btn");
+
+// Chat screen
 const roomTitle = document.getElementById("room-title");
 const userList = document.getElementById("user-list");
 const messagesEl = document.getElementById("messages");
@@ -17,9 +41,19 @@ const messageInput = document.getElementById("message-input");
 const themeToggle = document.getElementById("theme-toggle");
 const emojiBtn = document.getElementById("emoji-btn");
 const emojiPanel = document.getElementById("emoji-panel");
+const backToChoiceLink = document.getElementById("back-to-choice-link");
 
 let myUsername = "";
+let myIsGuest = true;
+let pendingRoomId = "";
 let typingTimeout = null;
+
+function showScreen(screen) {
+  [authScreen, roomChoiceScreen, roomCreatedScreen, profileScreen, chatScreen].forEach((s) =>
+    s.classList.add("hidden")
+  );
+  screen.classList.remove("hidden");
+}
 
 // ---- Check auth status on page load ----
 async function checkAuth() {
@@ -28,26 +62,22 @@ async function checkAuth() {
     if (res.ok) {
       const data = await res.json();
       myUsername = data.username;
-      showJoinScreen();
+      myIsGuest = data.isGuest;
+      showRoomChoiceScreen();
     } else {
-      showAuthScreen();
+      showScreen(authScreen);
     }
   } catch (err) {
-    showAuthScreen();
+    showScreen(authScreen);
   }
 }
 
-function showAuthScreen() {
-  authScreen.classList.remove("hidden");
-  joinScreen.classList.add("hidden");
-  chatScreen.classList.add("hidden");
-}
-
-function showJoinScreen() {
-  authScreen.classList.add("hidden");
-  joinScreen.classList.remove("hidden");
-  chatScreen.classList.add("hidden");
+function showRoomChoiceScreen() {
+  showScreen(roomChoiceScreen);
   signedInAs.textContent = `Signed in as ${myUsername}`;
+  profileLink.classList.toggle("hidden", myIsGuest);
+  roomInput.value = "";
+  joinError.classList.add("hidden");
   roomInput.focus();
 }
 
@@ -56,7 +86,8 @@ guestBtn.addEventListener("click", async () => {
     const res = await fetch("/api/guest", { method: "POST" });
     const data = await res.json();
     myUsername = data.username;
-    showJoinScreen();
+    myIsGuest = true;
+    showRoomChoiceScreen();
   } catch (err) {
     alert("Could not start guest session. Please try again.");
   }
@@ -101,23 +132,177 @@ document.addEventListener("click", (e) => {
   }
 });
 
-// ---- Join room ----
-const joinForm = document.getElementById("join-form");
-joinForm.addEventListener("submit", (e) => {
+// ---- Join an existing room by ID ----
+joinForm.addEventListener("submit", async (e) => {
   e.preventDefault();
-  joinRoom();
+  const roomId = roomInput.value.trim().toUpperCase();
+  joinError.classList.add("hidden");
+
+  if (!roomId) {
+    joinError.textContent = "Enter a room ID first, or create a new room.";
+    joinError.classList.remove("hidden");
+    return;
+  }
+
+  try {
+    const res = await fetch("/api/rooms/join", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ roomId }),
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      joinError.textContent = data.error || "Could not join that room.";
+      joinError.classList.remove("hidden");
+      return;
+    }
+
+    enterChat(data.roomId);
+  } catch (err) {
+    joinError.textContent = "Something went wrong. Try again.";
+    joinError.classList.remove("hidden");
+  }
 });
 
-function joinRoom() {
-  const room = roomInput.value.trim() || "general";
+// ---- Create a new room ----
+createRoomBtn.addEventListener("click", async () => {
+  try {
+    const res = await fetch("/api/rooms/create", { method: "POST" });
+    const data = await res.json();
+    pendingRoomId = data.roomId;
+    newRoomIdEl.textContent = data.roomId;
+    showScreen(roomCreatedScreen);
+  } catch (err) {
+    alert("Could not create a room. Please try again.");
+  }
+});
 
-  socket.emit("join_room", { username: myUsername, room });
+copyRoomIdBtn.addEventListener("click", () => {
+  navigator.clipboard.writeText(pendingRoomId).then(() => {
+    copyRoomIdBtn.textContent = "✅";
+    setTimeout(() => (copyRoomIdBtn.textContent = "📋"), 1500);
+  });
+});
 
-  joinScreen.classList.add("hidden");
-  chatScreen.classList.remove("hidden");
-  roomTitle.textContent = `# ${room}`;
+enterRoomBtn.addEventListener("click", () => {
+  enterChat(pendingRoomId);
+});
+
+// ---- Profile screen ----
+profileLink.addEventListener("click", async (e) => {
+  e.preventDefault();
+  try {
+    const res = await fetch("/api/profile");
+    if (!res.ok) return;
+    const data = await res.json();
+
+    usernameInput.value = data.username;
+    usernameMsg.classList.add("hidden");
+    roomMessagesPreview.classList.add("hidden");
+    roomMessagesPreview.innerHTML = "";
+
+    roomsList.innerHTML = "";
+    if (!data.joinedRooms.length) {
+      roomsList.innerHTML = `<p class="sub">No rooms yet — join or create one!</p>`;
+    } else {
+      data.joinedRooms.forEach((r) => {
+        const row = document.createElement("div");
+        row.className = "room-list-item";
+        const date = new Date(r.joinedAt).toLocaleDateString();
+        row.innerHTML = `
+          <span class="room-list-id">${r.roomId}</span>
+          <span class="room-list-date">${date}</span>
+          <button class="room-view-btn" data-room="${r.roomId}">View chat</button>
+          <button class="room-rejoin-btn" data-room="${r.roomId}">Rejoin</button>
+        `;
+        roomsList.appendChild(row);
+      });
+    }
+
+    showScreen(profileScreen);
+  } catch (err) {
+    alert("Could not load your profile.");
+  }
+});
+
+roomsList.addEventListener("click", async (e) => {
+  const roomId = e.target.dataset.room;
+  if (!roomId) return;
+
+  if (e.target.classList.contains("room-rejoin-btn")) {
+    enterChat(roomId);
+    return;
+  }
+
+  if (e.target.classList.contains("room-view-btn")) {
+    try {
+      const res = await fetch(`/api/rooms/${roomId}/messages`);
+      const data = await res.json();
+      roomMessagesPreview.innerHTML = `<h4>Messages in ${roomId}</h4>`;
+      if (!data.messages.length) {
+        roomMessagesPreview.innerHTML += `<p class="sub">No saved messages in this room yet.</p>`;
+      } else {
+        data.messages.forEach((m) => {
+          const line = document.createElement("p");
+          line.className = "preview-line";
+          const time = new Date(m.createdAt).toLocaleString();
+          line.innerHTML = `<strong>${m.username}</strong> <span class="sub">(${time})</span>: ${m.text}`;
+          roomMessagesPreview.appendChild(line);
+        });
+      }
+      roomMessagesPreview.classList.remove("hidden");
+    } catch (err) {
+      alert("Could not load messages for this room.");
+    }
+  }
+});
+
+saveUsernameBtn.addEventListener("click", async () => {
+  const newUsername = usernameInput.value.trim();
+  usernameMsg.classList.add("hidden");
+
+  try {
+    const res = await fetch("/api/profile/username", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: newUsername }),
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      usernameMsg.textContent = data.error || "Could not update username.";
+      usernameMsg.classList.remove("hidden");
+      return;
+    }
+
+    myUsername = data.username;
+    usernameMsg.textContent = "Saved!";
+    usernameMsg.style.color = "var(--primary)";
+    usernameMsg.classList.remove("hidden");
+  } catch (err) {
+    usernameMsg.textContent = "Something went wrong.";
+    usernameMsg.classList.remove("hidden");
+  }
+});
+
+backToRoomsBtn.addEventListener("click", () => {
+  showRoomChoiceScreen();
+});
+
+// ---- Enter the live chat room ----
+function enterChat(roomId) {
+  socket.emit("join_room", { room: roomId });
+  showScreen(chatScreen);
+  roomTitle.textContent = `# ${roomId}`;
+  messagesEl.innerHTML = "";
   messageInput.focus();
 }
+
+backToChoiceLink.addEventListener("click", (e) => {
+  e.preventDefault();
+  showRoomChoiceScreen();
+});
 
 messageForm.addEventListener("submit", (e) => {
   e.preventDefault();
@@ -167,6 +352,11 @@ socket.on("display_typing", (username) => {
   typingTimeout = setTimeout(() => {
     typingIndicator.textContent = "";
   }, 1500);
+});
+
+socket.on("auth_error", () => {
+  alert("Your session expired. Please sign in again.");
+  window.location.href = "/app.html";
 });
 
 function renderMessage(message) {
