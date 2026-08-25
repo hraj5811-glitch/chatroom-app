@@ -24,7 +24,7 @@ const PORT = process.env.PORT || 3000;
 
 // ---- Database ----
 mongoose
-  .connect("mongodb://2503031050398_db_user:rzDKLQSPmxeKWD1G@ac-oa5kvkc-shard-00-00.nhuf5qn.mongodb.net:27017,ac-oa5kvkc-shard-00-01.nhuf5qn.mongodb.net:27017,ac-oa5kvkc-shard-00-02.nhuf5qn.mongodb.net:27017/?ssl=true&replicaSet=atlas-sl139t-shard-0&authSource=admin&appName=Cluster0")
+  .connect(process.env.MONGODB_URI)
   .then(() => console.log("Connected to MongoDB"))
   .catch((err) => console.error("MongoDB connection error:", err));
 
