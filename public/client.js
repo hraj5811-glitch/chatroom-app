@@ -247,7 +247,17 @@ roomsList.addEventListener("click", async (e) => {
           const line = document.createElement("p");
           line.className = "preview-line";
           const time = new Date(m.createdAt).toLocaleString();
-          line.innerHTML = `<strong>${m.username}</strong> <span class="sub">(${time})</span>: ${m.text}`;
+          
+          const strong = document.createElement("strong");
+          strong.textContent = m.username;
+          const timeSpan = document.createElement("span");
+          timeSpan.className = "sub";
+          timeSpan.textContent = ` (${time}): `;
+          const textNode = document.createTextNode(m.text);
+
+          line.appendChild(strong);
+          line.appendChild(timeSpan);
+          line.appendChild(textNode);
           roomMessagesPreview.appendChild(line);
         });
       }
@@ -301,6 +311,7 @@ function enterChat(roomId) {
 
 backToChoiceLink.addEventListener("click", (e) => {
   e.preventDefault();
+  socket.emit("leave_room");
   showRoomChoiceScreen();
 });
 

@@ -184,8 +184,214 @@ app.get("/api/rooms/:roomId/messages", requireLogin, async (req, res) => {
   res.json({ messages });
 });
 
+// ---- Admin middleware & routes ----
+function requireAdmin(req, res, next) {
+  if (req.session && req.session.isAdmin) return next();
+  return res.status(401).json({ error: "Admin access required" });
+}
+
+app.get("/admin", (req, res) => {
+  res.redirect("/admin.html");
+});
+
+app.post("/api/admin/login", (req, res) => {
+  const { password } = req.body;
+  const adminPassword = process.env.ADMIN_PASSWORD || "admin123";
+  if (password && password === adminPassword) {
+    req.session.isAdmin = true;
+    return res.json({ success: true, message: "Logged in as admin" });
+  }
+  return res.status(401).json({ error: "Invalid admin password" });
+});
+
+app.post("/api/admin/logout", (req, res) => {
+  req.session.isAdmin = false;
+  res.json({ success: true, message: "Logged out from admin" });
+});
+
+app.get("/api/admin/me", (req, res) => {
+  if (req.session && req.session.isAdmin) {
+    return res.json({ isAdmin: true });
+  }
+  return res.status(401).json({ isAdmin: false });
+});
+
+// Admin Stats
+app.get("/api/admin/stats", requireAdmin, async (req, res) => {
+  try {
+    const totalUsers = await User.countDocuments();
+    const totalRooms = await Room.countDocuments();
+    const totalMessages = await Message.countDocuments();
+
+    const onlineSockets = Object.values(activeUsers);
+    const activeRoomsSet = new Set(onlineSockets.map((u) => u.room).filter(Boolean));
+
+    res.json({
+      totalUsers,
+      totalRooms,
+      totalMessages,
+      onlineUsersCount: onlineSockets.length,
+      activeRoomsCount: activeRoomsSet.size,
+      onlineUsers: onlineSockets.map((u) => ({
+        username: u.username,
+        room: u.room,
+        isGuest: u.isGuest,
+      })),
+    });
+  } catch (err) {
+    console.error("Admin stats failed:", err);
+    res.status(500).json({ error: "Could not fetch admin stats" });
+  }
+});
+
+// Admin Messages (Search & Filter & Paginate)
+app.get("/api/admin/messages", requireAdmin, async (req, res) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 30));
+    const skip = (page - 1) * limit;
+
+    const filter = {};
+    if (req.query.room) {
+      filter.room = String(req.query.room).trim().toUpperCase();
+    }
+    if (req.query.username) {
+      filter.username = { $regex: String(req.query.username).trim(), $options: "i" };
+    }
+    if (req.query.search) {
+      filter.text = { $regex: String(req.query.search).trim(), $options: "i" };
+    }
+
+    const [messages, total] = await Promise.all([
+      Message.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+      Message.countDocuments(filter),
+    ]);
+
+    res.json({
+      messages,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit) || 1,
+    });
+  } catch (err) {
+    console.error("Admin messages failed:", err);
+    res.status(500).json({ error: "Could not fetch messages" });
+  }
+});
+
+app.delete("/api/admin/messages/:id", requireAdmin, async (req, res) => {
+  try {
+    const deleted = await Message.findByIdAndDelete(req.params.id);
+    if (!deleted) {
+      return res.status(404).json({ error: "Message not found" });
+    }
+    io.to("admin_channel").emit("admin_live_event", {
+      type: "message_deleted",
+      messageId: req.params.id,
+      text: "A message was deleted by admin.",
+      time: new Date(),
+    });
+    res.json({ success: true, message: "Message deleted" });
+  } catch (err) {
+    console.error("Delete message failed:", err);
+    res.status(500).json({ error: "Could not delete message" });
+  }
+});
+
+// Admin Rooms List & Delete
+app.get("/api/admin/rooms", requireAdmin, async (req, res) => {
+  try {
+    const rooms = await Room.find()
+      .populate("createdBy", "username email displayName")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const roomIds = rooms.map((r) => r.roomId);
+    const messageCounts = await Message.aggregate([
+      { $match: { room: { $in: roomIds } } },
+      { $group: { _id: "$room", count: { $sum: 1 }, lastMessageAt: { $max: "$createdAt" } } },
+    ]);
+
+    const countMap = {};
+    messageCounts.forEach((mc) => {
+      countMap[mc._id] = { count: mc.count, lastMessageAt: mc.lastMessageAt };
+    });
+
+    const enrichedRooms = rooms.map((room) => {
+      const onlineCount = Object.values(activeUsers).filter((u) => u.room === room.roomId).length;
+      return {
+        ...room,
+        messageCount: countMap[room.roomId]?.count || 0,
+        lastMessageAt: countMap[room.roomId]?.lastMessageAt || null,
+        onlineCount,
+      };
+    });
+
+    res.json({ rooms: enrichedRooms });
+  } catch (err) {
+    console.error("Admin rooms failed:", err);
+    res.status(500).json({ error: "Could not fetch rooms" });
+  }
+});
+
+app.delete("/api/admin/rooms/:roomId", requireAdmin, async (req, res) => {
+  try {
+    const roomId = String(req.params.roomId || "").toUpperCase();
+    await Room.deleteOne({ roomId });
+    await Message.deleteMany({ room: roomId });
+    res.json({ success: true, message: `Room ${roomId} and its messages deleted` });
+  } catch (err) {
+    console.error("Delete room failed:", err);
+    res.status(500).json({ error: "Could not delete room" });
+  }
+});
+
+// Fetch full history of any room (active or past) for the admin inspector
+app.get("/api/admin/rooms/:roomId/history", requireAdmin, async (req, res) => {
+  try {
+    const roomId = String(req.params.roomId || "").toUpperCase();
+    const room = await Room.findOne({ roomId }).populate("createdBy", "username email displayName").lean();
+    const messages = await Message.find({ room: roomId }).sort({ createdAt: 1 }).lean();
+    const onlineUsersInRoom = getUsersInRoom(roomId);
+
+    res.json({
+      roomId,
+      room,
+      messages,
+      totalMessages: messages.length,
+      onlineUsers: onlineUsersInRoom,
+      isLive: onlineUsersInRoom.length > 0,
+    });
+  } catch (err) {
+    console.error("Room history inspection failed:", err);
+    res.status(500).json({ error: "Could not fetch room history" });
+  }
+});
+
+// Admin Users List & Delete
+app.get("/api/admin/users", requireAdmin, async (req, res) => {
+  try {
+    const users = await User.find().sort({ createdAt: -1 }).lean();
+    res.json({ users });
+  } catch (err) {
+    console.error("Admin users failed:", err);
+    res.status(500).json({ error: "Could not fetch users" });
+  }
+});
+
+app.delete("/api/admin/users/:id", requireAdmin, async (req, res) => {
+  try {
+    await User.findByIdAndDelete(req.params.id);
+    res.json({ success: true, message: "User deleted" });
+  } catch (err) {
+    console.error("Delete user failed:", err);
+    res.status(500).json({ error: "Could not delete user" });
+  }
+});
+
 // ---- Socket.IO ----
 const activeUsers = {}; // socketId -> { username, room, isGuest }
+const spectators = new Set(); // socketId set of invisible admin spectators
 
 function getUsersInRoom(room) {
   return Object.values(activeUsers)
@@ -193,10 +399,18 @@ function getUsersInRoom(room) {
     .map((u) => u.username);
 }
 
+function getSocketSession(socket) {
+  return new Promise((resolve) => {
+    sessionMiddleware(socket.request, {}, () => {
+      resolve(socket.request.session || {});
+    });
+  });
+}
+
 // Figures out who's really on the other end of this socket using the shared session,
 // rather than trusting whatever the client claims to be.
 async function resolveIdentity(socket) {
-  const sess = socket.request.session;
+  const sess = await getSocketSession(socket);
   if (!sess) return null;
 
   if (sess.passport && sess.passport.user) {
@@ -212,6 +426,57 @@ async function resolveIdentity(socket) {
 }
 
 io.on("connection", (socket) => {
+  // Allow admin client to subscribe to live real-time server feed
+  socket.on("admin_join", async () => {
+    const sess = await getSocketSession(socket);
+    if (sess && sess.isAdmin) {
+      socket.join("admin_channel");
+    }
+  });
+
+  // Ghost Spectator Mode: Join room invisibly without alerts or appearing in user list
+  socket.on("admin_spectate_room", async ({ room }) => {
+    const sess = await getSocketSession(socket);
+    if (!sess || !sess.isAdmin) {
+      socket.emit("auth_error", "Admin access required.");
+      return;
+    }
+
+    const safeRoom = String(room || "").toUpperCase().slice(0, 12);
+    socket.join(safeRoom);
+    spectators.add(socket.id);
+
+    try {
+      const history = await Message.find({ room: safeRoom })
+        .sort({ createdAt: -1 })
+        .limit(100)
+        .lean();
+      
+      const currentOccupants = getUsersInRoom(safeRoom);
+
+      socket.emit("spectate_history", {
+        room: safeRoom,
+        messages: history.reverse(),
+        occupants: currentOccupants,
+      });
+    } catch (err) {
+      console.error("Failed to load spectate history:", err);
+      socket.emit("spectate_history", { room: safeRoom, messages: [], occupants: [] });
+    }
+  });
+
+  // Exit Ghost Spectator Mode cleanly
+  socket.on("admin_leave_spectate", async ({ room }) => {
+    const sess = await getSocketSession(socket);
+    if (!sess || !sess.isAdmin) return;
+
+    if (room) {
+      const safeRoom = String(room || "").toUpperCase().slice(0, 12);
+      socket.leave(safeRoom);
+    }
+    spectators.delete(socket.id);
+  });
+
   socket.on("join_room", async ({ room }) => {
     const identity = await resolveIdentity(socket);
     if (!identity) {
@@ -228,8 +493,7 @@ io.on("connection", (socket) => {
       isGuest: identity.isGuest,
     };
 
-    // Load persistent history from MongoDB (guest messages were never saved, so
-    // rooms with only guest chatter will simply show no prior history)
+    // Load persistent history from MongoDB
     try {
       const history = await Message.find({ room: safeRoom })
         .sort({ createdAt: -1 })
@@ -243,6 +507,31 @@ io.on("connection", (socket) => {
 
     io.to(safeRoom).emit("system_message", `${identity.username} joined the room.`);
     io.to(safeRoom).emit("user_list", getUsersInRoom(safeRoom));
+
+    // Notify admin channel
+    io.to("admin_channel").emit("admin_live_event", {
+      type: "user_joined",
+      user: identity.username,
+      room: safeRoom,
+      isGuest: identity.isGuest,
+      time: new Date(),
+    });
+  });
+
+  socket.on("leave_room", () => {
+    const user = activeUsers[socket.id];
+    if (user) {
+      socket.leave(user.room);
+      io.to(user.room).emit("system_message", `${user.username} left the room.`);
+      io.to("admin_channel").emit("admin_live_event", {
+        type: "user_left",
+        user: user.username,
+        room: user.room,
+        time: new Date(),
+      });
+      delete activeUsers[socket.id];
+      io.to(user.room).emit("user_list", getUsersInRoom(user.room));
+    }
   });
 
   socket.on("send_message", async (text) => {
@@ -251,18 +540,6 @@ io.on("connection", (socket) => {
 
     const cleanText = String(text).slice(0, 1000);
 
-    // Guests chat live but their messages are never written to MongoDB —
-    // only logged-in users get a permanent backup.
-    if (user.isGuest) {
-      io.to(user.room).emit("receive_message", {
-        id: socket.id,
-        user: user.username,
-        text: cleanText,
-        time: new Date(),
-      });
-      return;
-    }
-
     try {
       const saved = await Message.create({
         room: user.room,
@@ -270,9 +547,22 @@ io.on("connection", (socket) => {
         text: cleanText,
       });
 
-      io.to(user.room).emit("receive_message", {
+      const messagePayload = {
         id: socket.id,
+        messageId: String(saved._id),
         user: saved.username,
+        text: saved.text,
+        time: saved.createdAt,
+      };
+
+      io.to(user.room).emit("receive_message", messagePayload);
+
+      // Broadcast to admin live stream
+      io.to("admin_channel").emit("admin_live_event", {
+        type: user.isGuest ? "guest_message" : "user_message",
+        messageId: String(saved._id),
+        user: saved.username,
+        room: user.room,
         text: saved.text,
         time: saved.createdAt,
       });
@@ -288,9 +578,16 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnect", () => {
+    spectators.delete(socket.id);
     const user = activeUsers[socket.id];
     if (user) {
       io.to(user.room).emit("system_message", `${user.username} left the room.`);
+      io.to("admin_channel").emit("admin_live_event", {
+        type: "user_disconnect",
+        user: user.username,
+        room: user.room,
+        time: new Date(),
+      });
       delete activeUsers[socket.id];
       io.to(user.room).emit("user_list", getUsersInRoom(user.room));
     }

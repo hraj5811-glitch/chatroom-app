@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kothaa — Admin Command Center</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="admin.css" />
+</head>
+<body>
+
+  <!-- Ambient Backdrop -->
+  <div class="backdrop" aria-hidden="true">
+    <div class="orb orb-a"></div>
+    <div class="orb orb-b"></div>
+    <div class="grid-veil"></div>
+  </div>
+
+  <!-- Admin Login Screen -->
+  <div id="admin-login-screen" class="auth-wrap">
+    <div class="glow-frame">
+      <div class="card login-card">
+        <div class="card-head">
+          <span class="brand">
+            <span class="brand-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            </span>
+            <span class="brand-name">kothaa admin</span>
+          </span>
+          <h1>Admin Access</h1>
+          <p class="sub">Enter your master passcode to access the system dashboard.</p>
+        </div>
+
+        <form id="login-form" class="form">
+          <label class="field">
+            <span class="field-label">Admin Passcode</span>
+            <div class="input-wrap">
+              <input type="password" id="admin-pass-input" class="field-input" placeholder="Enter admin password..." autocomplete="current-password" autofocus />
+              <button type="button" id="toggle-pass-btn" class="pass-toggle" title="Toggle visibility">👁️</button>
+            </div>
+          </label>
+          <p id="login-error" class="error-text hidden"></p>
+          <button type="submit" id="login-btn" class="btn btn-primary">
+            <span>Unlock Dashboard</span>
+            <svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </button>
+        </form>
+
+        <a href="/app.html" class="back-link">← Return to Chat App</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Admin Dashboard Screen -->
+  <div id="admin-dashboard" class="dashboard-wrap hidden">
+    <!-- Top Navigation Header -->
+    <header class="admin-header">
+      <div class="header-left">
+        <div class="brand">
+          <span class="brand-icon small">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          </span>
+          <span class="brand-name">kothaa <span class="badge-admin">ADMIN</span></span>
+        </div>
+        <div class="live-pill">
+          <span class="pulse-dot"></span>
+          <span id="live-indicator-text">Live Monitoring Active</span>
+        </div>
+      </div>
+
+      <div class="header-right">
+        <button id="theme-toggle-btn" class="icon-btn" title="Toggle theme">🌙</button>
+        <button id="refresh-all-btn" class="btn btn-sm btn-outline" title="Refresh data">🔄 Refresh</button>
+        <a href="/app.html" class="btn btn-sm btn-outline" target="_blank">Open App ↗</a>
+        <button id="admin-logout-btn" class="btn btn-sm btn-danger">Logout</button>
+      </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="dashboard-content">
+      <!-- Stats Metric Cards -->
+      <section class="metrics-grid">
+        <div class="metric-card card-glow-green">
+          <div class="metric-icon">🟢</div>
+          <div class="metric-info">
+            <span class="metric-label">Online Users Now</span>
+            <h2 id="stat-online-users" class="metric-value">0</h2>
+            <span id="stat-active-rooms" class="metric-sub">0 active rooms right now</span>
+          </div>
+        </div>
+
+        <div class="metric-card card-glow-purple">
+          <div class="metric-icon">💬</div>
+          <div class="metric-info">
+            <span class="metric-label">Total Messages Saved</span>
+            <h2 id="stat-total-messages" class="metric-value">0</h2>
+            <span class="metric-sub">Across all rooms in MongoDB</span>
+          </div>
+        </div>
+
+        <div class="metric-card card-glow-blue">
+          <div class="metric-icon">🏠</div>
+          <div class="metric-info">
+            <span class="metric-label">Total Rooms Created</span>
+            <h2 id="stat-total-rooms" class="metric-value">0</h2>
+            <span class="metric-sub">Public and private rooms</span>
+          </div>
+        </div>
+
+        <div class="metric-card card-glow-orange">
+          <div class="metric-icon">👥</div>
+          <div class="metric-info">
+            <span class="metric-label">Registered Google Users</span>
+            <h2 id="stat-total-users" class="metric-value">0</h2>
+            <span class="metric-sub">Verified accounts</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Navigation Tabs -->
+      <nav class="dashboard-tabs">
+        <button class="tab-btn active" data-tab="messages-tab">
+          <span class="tab-icon">💬</span> Messages Explorer
+        </button>
+        <button class="tab-btn" data-tab="rooms-tab">
+          <span class="tab-icon">🏠</span> Rooms Directory
+        </button>
+        <button class="tab-btn" data-tab="users-tab">
+          <span class="tab-icon">👥</span> Registered Users
+        </button>
+        <button class="tab-btn" data-tab="live-tab">
+          <span class="tab-icon">🔴</span> Real-time Live Stream
+          <span id="live-badge-count" class="tab-badge">0</span>
+        </button>
+      </nav>
+
+      <!-- TAB 1: Messages Explorer -->
+      <section id="messages-tab" class="tab-pane active">
+        <div class="pane-header">
+          <div>
+            <h3>All Saved Messages</h3>
+            <p class="sub-pane">Inspect, search, filter, and moderate chats sent in any room.</p>
+          </div>
+          <div class="pane-controls">
+            <input type="text" id="search-msg-input" class="search-input" placeholder="🔍 Search message text..." />
+            <input type="text" id="filter-room-input" class="search-input small" placeholder="Room (e.g. A7K9P2)" style="text-transform: uppercase" />
+            <input type="text" id="filter-user-input" class="search-input small" placeholder="Username" />
+            <button id="clear-msg-filters-btn" class="btn btn-sm btn-outline">Clear</button>
+          </div>
+        </div>
+
+        <div class="table-card">
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Room</th>
+                  <th>Sender</th>
+                  <th>Message Content</th>
+                  <th>Timestamp</th>
+                  <th style="text-align: right">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="messages-table-body">
+                <tr><td colspan="5" class="table-empty">Loading messages...</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Pagination -->
+          <div class="pagination-bar">
+            <span id="msg-pagination-info" class="page-info">Showing 0 messages</span>
+            <div class="page-buttons">
+              <button id="msg-prev-btn" class="btn btn-sm btn-outline" disabled>← Previous</button>
+              <span id="msg-page-num" class="page-number">Page 1</span>
+              <button id="msg-next-btn" class="btn btn-sm btn-outline" disabled>Next →</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 2: Rooms Directory -->
+      <section id="rooms-tab" class="tab-pane">
+        <div class="pane-header">
+          <div>
+            <h3>Rooms Directory</h3>
+            <p class="sub-pane">All created chat rooms, creator ownership, message counts, and active occupants.</p>
+          </div>
+          <div class="pane-controls">
+            <input type="text" id="search-room-table" class="search-input" placeholder="🔍 Filter rooms list..." />
+          </div>
+        </div>
+
+        <div class="table-card">
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Room Code</th>
+                  <th>Created By</th>
+                  <th>Created Date</th>
+                  <th>Messages Count</th>
+                  <th>Online Now</th>
+                  <th style="text-align: right">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="rooms-table-body">
+                <tr><td colspan="6" class="table-empty">Loading rooms...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 3: Registered Users -->
+      <section id="users-tab" class="tab-pane">
+        <div class="pane-header">
+          <div>
+            <h3>Registered Google Accounts</h3>
+            <p class="sub-pane">Users who have signed in via Google OAuth.</p>
+          </div>
+          <div class="pane-controls">
+            <input type="text" id="search-user-table" class="search-input" placeholder="🔍 Filter users..." />
+          </div>
+        </div>
+
+        <div class="table-card">
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>User / Username</th>
+                  <th>Google Name</th>
+                  <th>Email</th>
+                  <th>Joined Rooms</th>
+                  <th>Joined Date</th>
+                  <th style="text-align: right">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="users-table-body">
+                <tr><td colspan="6" class="table-empty">Loading users...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 4: Real-time Live Stream -->
+      <section id="live-tab" class="tab-pane">
+        <div class="pane-header">
+          <div>
+            <h3>Live Activity Feed</h3>
+            <p class="sub-pane">Real-time socket events stream as users join, chat, and leave.</p>
+          </div>
+          <div class="pane-controls">
+            <button id="clear-live-feed-btn" class="btn btn-sm btn-outline">Clear Feed</button>
+          </div>
+        </div>
+
+        <div class="terminal-card">
+          <div class="terminal-head">
+            <span class="terminal-dot red"></span>
+            <span class="terminal-dot yellow"></span>
+            <span class="terminal-dot green"></span>
+            <span class="terminal-title">live_stream_listener.log</span>
+          </div>
+          <div id="live-stream-list" class="terminal-body">
+            <div class="log-entry log-system">
+              <span class="log-time">[System]</span>
+              <span class="log-text">Listening for real-time Socket.IO events...</span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Ghost Room Inspector Modal (Live Ghost Mode & Past Room Archive Viewer) -->
+  <div id="inspector-modal" class="modal-overlay hidden">
+    <div class="inspector-card">
+      <!-- Modal Header -->
+      <div class="inspector-head">
+        <div class="inspector-title-wrap">
+          <span class="brand-icon small" style="background: var(--primary)">👻</span>
+          <div>
+            <div class="inspector-title-row">
+              <h2 id="inspector-room-title">Room #------</h2>
+              <span id="inspector-status-badge" class="stealth-badge">🟢 GHOST SPECTATOR ACTIVE</span>
+            </div>
+            <p id="inspector-room-meta" class="sub-pane">Inspecting room data...</p>
+          </div>
+        </div>
+        <div class="inspector-head-actions">
+          <input type="text" id="inspector-search-input" class="search-input small" placeholder="🔍 Search in this room..." />
+          <button id="close-inspector-btn" class="btn btn-sm btn-outline" title="Close Inspector">✕ Exit Inspector</button>
+        </div>
+      </div>
+
+      <!-- Occupants strip -->
+      <div id="inspector-occupants-bar" class="occupants-bar">
+        <span class="occupants-label">Live Occupants:</span>
+        <div id="inspector-occupants-list" class="occupants-list">
+          <span class="occupant-tag">None</span>
+        </div>
+      </div>
+
+      <!-- Messages Stream -->
+      <div id="inspector-messages" class="inspector-messages">
+        <!-- Messages rendered here -->
+      </div>
+
+      <!-- Live Typing Indicator -->
+      <div id="inspector-typing" class="typing-indicator" style="padding: 0.35rem 1.25rem; font-size: 0.78rem; color: var(--text-muted); min-height: 1.2rem;"></div>
+
+      <!-- Footer Info -->
+      <div class="inspector-footer">
+        <span id="inspector-footer-info" class="sub-pane">🔒 Invisible Mode: Zero notifications sent to users in this room.</span>
+        <button id="inspector-scroll-bottom-btn" class="btn btn-sm btn-outline">⬇ Jump to latest</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notification Toast -->
+  <div id="toast" class="toast hidden"></div>
+
+  <!-- Socket.IO & Admin script -->
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="admin.js"></script>
+</body>
+</html>
