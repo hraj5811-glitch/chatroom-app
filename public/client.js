@@ -236,11 +236,12 @@ function escapeHtml(str) {
 }
 
 function renderAvatarImg(url, name, sizeClass = "small") {
+  const safeName = escapeHtml(name || "User");
   if (url) {
-    return `<img class="user-avatar ${sizeClass}" src="${escapeHtml(url)}" alt="${escapeHtml(name)}" />`;
+    return `<img class="user-avatar ${sizeClass}" src="${escapeHtml(url)}" alt="${safeName}" data-avatar-user="${safeName}" />`;
   }
   const initial = (name || "U")[0].toUpperCase();
-  return `<span class="user-avatar ${sizeClass} avatar-placeholder">${initial}</span>`;
+  return `<span class="user-avatar ${sizeClass} avatar-placeholder" data-avatar-user="${safeName}">${initial}</span>`;
 }
 
 // Web Audio synthesizer for message chime
@@ -304,8 +305,8 @@ async function checkAuth() {
 
       showRoomChoiceScreen();
 
-      // Trigger Onboarding modal if logged-in user has not completed onboarding
-      if (!myIsGuest && !myIsOnboarded) {
+      // Trigger Onboarding modal if user has not completed onboarding
+      if (!myIsOnboarded) {
         openOnboardingModal();
       }
     } else {
@@ -329,18 +330,16 @@ function showRoomChoiceScreen() {
   showScreen(roomChoiceScreen);
   signedInAs.textContent = myUsername;
   updateHeaderAvatar();
-  profileLink.classList.toggle("hidden", myIsGuest);
-  if (navProfile) navProfile.classList.toggle("hidden", myIsGuest);
+  profileLink.classList.remove("hidden");
+  if (navProfile) navProfile.classList.remove("hidden");
   roomInput.value = "";
   joinError.classList.add("hidden");
   createError.classList.add("hidden");
 
   switchHubTab("discover");
   fetchDiscoverRooms();
-  if (!myIsGuest) {
-    fetchDMConversations();
-    fetchFriends();
-  }
+  fetchDMConversations();
+  fetchFriends();
 }
 
 guestBtn.addEventListener("click", async () => {
@@ -354,13 +353,14 @@ guestBtn.addEventListener("click", async () => {
     myCollege = "";
     myInterests = [];
     myIsPublicProfile = true;
-    myIsOnboarded = true;
+    myIsOnboarded = false;
     if (socket.connected) {
       socket.disconnect().connect();
     } else {
       socket.connect();
     }
     showRoomChoiceScreen();
+    openOnboardingModal();
   } catch (err) {
     alert("Could not start guest session. Please try again.");
   }
@@ -1249,92 +1249,146 @@ function renderSuggestedFriends(suggested) {
 }
 
 function renderFriends(friends) {
-  const pending = friends.filter((f) => f.status === "pending");
+  const incoming = friends.filter((f) => f.status === "incoming" || (f.status === "pending" && !f.isOutgoing));
+  const outgoing = friends.filter((f) => f.status === "outgoing" || f.status === "sent");
   const accepted = friends.filter((f) => f.status === "accepted");
 
-  if (pending.length > 0) {
-    friendsTabBadge.textContent = pending.length;
-    friendsTabBadge.classList.remove("hidden");
-    pendingRequestsSection.classList.remove("hidden");
-    pendingRequestsCount.textContent = pending.length;
+  // 1. Incoming Friend Requests (Show Accept / Decline)
+  const pendingSection = document.getElementById("pending-requests-section");
+  const pendingCountEl = document.getElementById("pending-requests-count");
+  const pendingListEl = document.getElementById("pending-requests-list");
 
-    pendingRequestsList.innerHTML = "";
-    pending.forEach((p) => {
+  if (incoming.length > 0) {
+    if (friendsTabBadge) {
+      friendsTabBadge.textContent = incoming.length;
+      friendsTabBadge.classList.remove("hidden");
+    }
+    if (pendingSection) pendingSection.classList.remove("hidden");
+    if (pendingCountEl) pendingCountEl.textContent = incoming.length;
+
+    if (pendingListEl) {
+      pendingListEl.innerHTML = "";
+      incoming.forEach((p) => {
+        const card = document.createElement("div");
+        card.className = "pending-card";
+        const avatarHtml = renderAvatarImg(p.avatarUrl, p.username, "small");
+
+        card.innerHTML = `
+          <div style="display:flex; align-items:center; gap:0.65rem;">
+            ${avatarHtml}
+            <div>
+              <strong>${escapeHtml(p.username)}</strong>
+              ${p.college ? `<div style="font-size:0.72rem; color:var(--text-muted);">🎓 ${escapeHtml(p.college)}</div>` : ""}
+            </div>
+          </div>
+          <div style="display:flex; gap:0.4rem;">
+            <button class="btn-chat-tiny accept-friend-btn">Accept</button>
+            <button class="btn-remove-tiny decline-friend-btn">Decline</button>
+          </div>
+        `;
+
+        card.querySelector(".accept-friend-btn").addEventListener("click", async () => {
+          await fetch("/api/friends/accept", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username: p.username }),
+          });
+          fetchFriends();
+        });
+
+        card.querySelector(".decline-friend-btn").addEventListener("click", async () => {
+          await fetch(`/api/friends/${p.username}`, { method: "DELETE" });
+          fetchFriends();
+        });
+
+        pendingListEl.appendChild(card);
+      });
+    }
+  } else {
+    if (friendsTabBadge) friendsTabBadge.classList.add("hidden");
+    if (pendingSection) pendingSection.classList.add("hidden");
+  }
+
+  // 2. Sent Requests Awaiting Response (Show Cancel Button)
+  const sentSection = document.getElementById("sent-requests-section");
+  const sentCountEl = document.getElementById("sent-requests-count");
+  const sentListEl = document.getElementById("sent-requests-list");
+
+  if (outgoing.length > 0) {
+    if (sentSection) sentSection.classList.remove("hidden");
+    if (sentCountEl) sentCountEl.textContent = outgoing.length;
+
+    if (sentListEl) {
+      sentListEl.innerHTML = "";
+      outgoing.forEach((o) => {
+        const card = document.createElement("div");
+        card.className = "pending-card";
+        const avatarHtml = renderAvatarImg(o.avatarUrl, o.username, "small");
+
+        card.innerHTML = `
+          <div style="display:flex; align-items:center; gap:0.65rem;">
+            ${avatarHtml}
+            <div>
+              <strong>${escapeHtml(o.username)}</strong>
+              <div style="font-size:0.72rem; color:var(--primary); font-weight:600;">⏳ Request Sent</div>
+            </div>
+          </div>
+          <button class="btn-remove-tiny cancel-request-btn" title="Cancel request">Cancel</button>
+        `;
+
+        card.querySelector(".cancel-request-btn").addEventListener("click", async () => {
+          await fetch(`/api/friends/${o.username}`, { method: "DELETE" });
+          fetchFriends();
+        });
+
+        sentListEl.appendChild(card);
+      });
+    }
+  } else {
+    if (sentSection) sentSection.classList.add("hidden");
+  }
+
+  // 3. Accepted Friends
+  if (friendsCount) friendsCount.textContent = accepted.length;
+  if (friendsList) {
+    friendsList.innerHTML = "";
+    if (!accepted.length) {
+      friendsList.innerHTML = `<p class="sub" style="grid-column:1/-1; text-align:center; padding:2rem 0;">No friends added yet. Enter a username above to connect!</p>`;
+      return;
+    }
+
+    accepted.forEach((f) => {
       const card = document.createElement("div");
-      card.className = "pending-card";
-      const avatarHtml = renderAvatarImg(p.avatarUrl, p.username, "small");
+      card.className = "friend-card";
+      const avatarHtml = renderAvatarImg(f.avatarUrl, f.username, "medium");
 
       card.innerHTML = `
-        <div style="display:flex; align-items:center; gap:0.65rem;">
-          ${avatarHtml}
-          <strong>${escapeHtml(p.username)}</strong>
+        ${avatarHtml}
+        <div class="friend-info">
+          <span class="friend-name">${escapeHtml(f.username)}</span>
+          <span class="friend-status-text">${f.isOnline ? "🟢 Online" : "⚪ Offline"} ${f.college ? "• 🎓 " + escapeHtml(f.college) : ""}</span>
         </div>
-        <div style="display:flex; gap:0.4rem;">
-          <button class="btn-chat-tiny accept-friend-btn">Accept</button>
-          <button class="btn-remove-tiny decline-friend-btn">Decline</button>
+        <div class="friend-actions">
+          <button class="btn-chat-tiny chat-friend-btn">💬 Chat</button>
+          <button class="btn-remove-tiny remove-friend-btn" title="Remove friend">✕</button>
         </div>
       `;
 
-      card.querySelector(".accept-friend-btn").addEventListener("click", async () => {
-        await fetch("/api/friends/accept", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ username: p.username }),
-        });
-        fetchFriends();
+      card.querySelector(".chat-friend-btn").addEventListener("click", () => {
+        switchHubTab("dms");
+        openDMChat(f.username, f.avatarUrl, f.userStatus);
       });
 
-      card.querySelector(".decline-friend-btn").addEventListener("click", async () => {
-        await fetch(`/api/friends/${p.username}`, { method: "DELETE" });
-        fetchFriends();
+      card.querySelector(".remove-friend-btn").addEventListener("click", async () => {
+        if (confirm(`Remove ${f.username} from friends?`)) {
+          await fetch(`/api/friends/${f.username}`, { method: "DELETE" });
+          fetchFriends();
+        }
       });
 
-      pendingRequestsList.appendChild(card);
+      friendsList.appendChild(card);
     });
-  } else {
-    friendsTabBadge.classList.add("hidden");
-    pendingRequestsSection.classList.add("hidden");
   }
-
-  friendsCount.textContent = accepted.length;
-  friendsList.innerHTML = "";
-
-  if (!accepted.length) {
-    friendsList.innerHTML = `<p class="sub" style="grid-column:1/-1; text-align:center; padding:2rem 0;">No friends added yet. Enter a username above to connect!</p>`;
-    return;
-  }
-
-  accepted.forEach((f) => {
-    const card = document.createElement("div");
-    card.className = "friend-card";
-    const avatarHtml = renderAvatarImg(f.avatarUrl, f.username, "medium");
-
-    card.innerHTML = `
-      ${avatarHtml}
-      <div class="friend-info">
-        <span class="friend-name">${escapeHtml(f.username)}</span>
-        <span class="friend-status-text">${f.isOnline ? "🟢 Online" : "⚪ Offline"}</span>
-      </div>
-      <div class="friend-actions">
-        <button class="btn-chat-tiny chat-friend-btn">💬 Chat</button>
-        <button class="btn-remove-tiny remove-friend-btn" title="Remove friend">✕</button>
-      </div>
-    `;
-
-    card.querySelector(".chat-friend-btn").addEventListener("click", () => {
-      switchHubTab("dms");
-      openDMChat(f.username, f.avatarUrl, f.userStatus);
-    });
-
-    card.querySelector(".remove-friend-btn").addEventListener("click", async () => {
-      if (confirm(`Remove ${f.username} from friends?`)) {
-        await fetch(`/api/friends/${f.username}`, { method: "DELETE" });
-        fetchFriends();
-      }
-    });
-
-    friendsList.appendChild(card);
-  });
 }
 
 if (addFriendBtn && addFriendInput) {
@@ -1421,40 +1475,59 @@ async function openUserProfileModal(username) {
 
     if (data.avatarUrl) {
       profileModalAvatar.src = data.avatarUrl;
+      profileModalAvatar.setAttribute("data-avatar-user", data.username);
       profileModalAvatar.style.display = "inline-block";
     } else {
       profileModalAvatar.src = "";
       profileModalAvatar.style.display = "none";
     }
 
-    // Configure actions
-    profileModalDmBtn.onclick = () => {
-      userProfileModal.classList.add("hidden");
-      if (currentRoomId) {
-        showRoomChoiceScreen();
-      }
-      switchHubTab("dms");
-      openDMChat(data.username, data.avatarUrl, data.status);
-    };
+    // Hide DM and Add Friend buttons if inspecting self
+    const isSelf = data.username === myUsername;
+    if (isSelf) {
+      profileModalDmBtn.style.display = "none";
+      profileModalFriendBtn.style.display = "none";
+    } else {
+      profileModalDmBtn.style.display = "inline-block";
+      profileModalFriendBtn.style.display = "inline-block";
+      profileModalFriendBtn.disabled = false;
+      profileModalFriendBtn.textContent = "+ Add Friend";
 
-    profileModalFriendBtn.onclick = async () => {
-      try {
-        const fRes = await fetch("/api/friends/request", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ username: data.username }),
-        });
-        if (fRes.ok) {
-          alert(`Friend request sent to ${data.username}!`);
-          profileModalFriendBtn.textContent = "✓ Sent";
-        } else {
-          const errData = await fRes.json();
-          alert(errData.error || "Could not send friend request.");
+      profileModalDmBtn.onclick = () => {
+        userProfileModal.classList.add("hidden");
+        if (currentRoomId) {
+          showRoomChoiceScreen();
         }
-      } catch (err) {
-        alert("Network error.");
-      }
-    };
+        switchHubTab("dms");
+        openDMChat(data.username, data.avatarUrl, data.status);
+      };
+
+      profileModalFriendBtn.onclick = async () => {
+        try {
+          profileModalFriendBtn.disabled = true;
+          profileModalFriendBtn.textContent = "Sending...";
+          const fRes = await fetch("/api/friends/request", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username: data.username }),
+          });
+          if (fRes.ok) {
+            alert(`Friend request sent to ${data.username}!`);
+            profileModalFriendBtn.textContent = "✓ Sent";
+            fetchFriends();
+          } else {
+            const errData = await fRes.json();
+            alert(errData.error || "Could not send friend request.");
+            profileModalFriendBtn.disabled = false;
+            profileModalFriendBtn.textContent = "+ Add Friend";
+          }
+        } catch (err) {
+          alert("Network error.");
+          profileModalFriendBtn.disabled = false;
+          profileModalFriendBtn.textContent = "+ Add Friend";
+        }
+      };
+    }
 
     userProfileModal.classList.remove("hidden");
   } catch (err) {
@@ -2113,6 +2186,27 @@ socket.on("friend_request_received", ({ from }) => {
 socket.on("friend_request_accepted", () => {
   playMessageChime();
   fetchFriends();
+});
+
+socket.on("user_avatar_updated", ({ username, avatarUrl }) => {
+  if (username === myUsername) {
+    myAvatarUrl = avatarUrl;
+    updateHeaderAvatar();
+  }
+  document.querySelectorAll(`[data-avatar-user="${username}"]`).forEach((el) => {
+    if (avatarUrl) {
+      if (el.tagName === "IMG") {
+        el.src = avatarUrl;
+      } else {
+        const newImg = document.createElement("img");
+        newImg.className = el.className.replace("avatar-placeholder", "").trim();
+        newImg.src = avatarUrl;
+        newImg.alt = username;
+        newImg.setAttribute("data-avatar-user", username);
+        el.replaceWith(newImg);
+      }
+    }
+  });
 });
 
 socket.on("pinned_message_updated", (pin) => {

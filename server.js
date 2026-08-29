@@ -123,6 +123,12 @@ function requireLogin(req, res, next) {
   return res.status(401).json({ error: "Not logged in" });
 }
 
+function requireUserOrGuest(req, res, next) {
+  if (req.isAuthenticated && req.isAuthenticated()) return next();
+  if (req.session && req.session.guestUsername) return next();
+  return res.status(401).json({ error: "Not logged in" });
+}
+
 // ---- Auth routes ----
 app.get("/auth/google", passport.authenticate("google", { scope: ["profile", "email"] }));
 
@@ -147,30 +153,35 @@ app.get("/auth/logout", (req, res) => {
 });
 
 // Returns the current logged-in user (Google) or guest identity, if any
-app.get("/api/me", (req, res) => {
+app.get("/api/me", async (req, res) => {
   if (req.isAuthenticated && req.isAuthenticated()) {
-    return res.json({
-      username: req.user.username,
-      email: req.user.email,
-      avatarUrl: req.user.avatarUrl || null,
-      bio: req.user.bio || "",
-      college: req.user.college || "",
-      interests: req.user.interests || [],
-      isPublicProfile: req.user.isPublicProfile ?? true,
-      isOnboarded: Boolean(req.user.isOnboarded),
-      status: req.user.status || "Online",
-      isGuest: false,
-    });
+    try {
+      const user = (await User.findById(req.user._id).lean()) || req.user;
+      return res.json({
+        username: user.username,
+        email: user.email,
+        avatarUrl: user.avatarUrl || null,
+        bio: user.bio || "",
+        college: user.college || "",
+        interests: user.interests || [],
+        isPublicProfile: user.isPublicProfile ?? true,
+        isOnboarded: Boolean(user.isOnboarded),
+        status: user.status || "Online",
+        isGuest: false,
+      });
+    } catch (err) {
+      return res.status(500).json({ error: "Server error fetching user" });
+    }
   }
-  if (req.session.guestUsername) {
+  if (req.session && req.session.guestUsername) {
     return res.json({
       username: req.session.guestUsername,
-      avatarUrl: null,
-      bio: "",
-      college: "",
-      interests: [],
-      isPublicProfile: true,
-      isOnboarded: true,
+      avatarUrl: req.session.guestAvatarUrl || null,
+      bio: req.session.guestBio || "",
+      college: req.session.guestCollege || "",
+      interests: req.session.guestInterests || [],
+      isPublicProfile: req.session.guestIsPublicProfile ?? true,
+      isOnboarded: Boolean(req.session.guestIsOnboarded),
       status: "Online",
       isGuest: true,
     });
@@ -384,20 +395,45 @@ app.post("/api/rooms/join", async (req, res) => {
   }
 });
 
-// ---- Profile & Social Routes (logged-in users only) ----
+// ---- Profile & Social Routes (logged-in users & guest sessions) ----
 
-app.get("/api/profile", requireLogin, async (req, res) => {
-  const rooms = [...req.user.joinedRooms].sort((a, b) => b.joinedAt - a.joinedAt);
-  res.json({
-    username: req.user.username,
-    email: req.user.email,
-    avatarUrl: req.user.avatarUrl || null,
-    bio: req.user.bio || "",
-    joinedRooms: rooms,
-  });
+app.get("/api/profile", requireUserOrGuest, async (req, res) => {
+  try {
+    if (req.isAuthenticated && req.isAuthenticated()) {
+      const user = (await User.findById(req.user._id).lean()) || req.user;
+      const rooms = [...(user.joinedRooms || [])].sort((a, b) => b.joinedAt - a.joinedAt);
+      return res.json({
+        username: user.username,
+        email: user.email || "",
+        avatarUrl: user.avatarUrl || null,
+        bio: user.bio || "",
+        college: user.college || "",
+        interests: user.interests || [],
+        isPublicProfile: user.isPublicProfile ?? true,
+        isOnboarded: Boolean(user.isOnboarded),
+        joinedRooms: rooms,
+      });
+    }
+    if (req.session && req.session.guestUsername) {
+      return res.json({
+        username: req.session.guestUsername,
+        email: "",
+        avatarUrl: req.session.guestAvatarUrl || null,
+        bio: req.session.guestBio || "",
+        college: req.session.guestCollege || "",
+        interests: req.session.guestInterests || [],
+        isPublicProfile: req.session.guestIsPublicProfile ?? true,
+        isOnboarded: Boolean(req.session.guestIsOnboarded),
+        joinedRooms: [],
+      });
+    }
+  } catch (err) {
+    console.error("Fetch profile failed:", err);
+    res.status(500).json({ error: "Could not fetch profile" });
+  }
 });
 
-app.put("/api/profile/username", requireLogin, async (req, res) => {
+app.put("/api/profile/username", requireUserOrGuest, async (req, res) => {
   try {
     const newUsername = String(req.body.username || "").trim().slice(0, 24);
     if (!newUsername || !/^[a-zA-Z0-9_]{3,24}$/.test(newUsername)) {
@@ -406,61 +442,132 @@ app.put("/api/profile/username", requireLogin, async (req, res) => {
     if (/^Guest/i.test(newUsername)) {
       return res.status(400).json({ error: "Usernames starting with 'Guest' are reserved." });
     }
-    // Case-insensitive check to guarantee global uniqueness
     const taken = await User.findOne({
       username: { $regex: new RegExp(`^${newUsername}$`, "i") },
     });
-    if (taken && String(taken._id) !== String(req.user._id)) {
-      return res.status(409).json({ error: "That username is already taken by another user." });
+
+    if (req.isAuthenticated && req.isAuthenticated()) {
+      if (taken && String(taken._id) !== String(req.user._id)) {
+        return res.status(409).json({ error: "That username is already taken by another user." });
+      }
+      const updatedUser = await User.findByIdAndUpdate(req.user._id, { $set: { username: newUsername } }, { new: true });
+      req.user = updatedUser;
+      return res.json({ username: updatedUser.username });
     }
-    req.user.username = newUsername;
-    await req.user.save();
-    res.json({ username: req.user.username });
+
+    if (req.session && req.session.guestUsername) {
+      if (taken) {
+        return res.status(409).json({ error: "That username is already taken by another user." });
+      }
+      req.session.guestUsername = newUsername;
+      await new Promise((resolve) => req.session.save(resolve));
+      return res.json({ username: newUsername });
+    }
   } catch (err) {
     console.error("Username update failed:", err);
     res.status(500).json({ error: "Could not update username" });
   }
 });
 
-app.post("/api/profile/avatar", requireLogin, uploadAvatar.single("avatar"), async (req, res) => {
+app.post("/api/profile/avatar", requireUserOrGuest, uploadAvatar.single("avatar"), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: "No avatar image provided or invalid format" });
   }
   const avatarUrl = `/avatars/${req.file.filename}`;
-  req.user.avatarUrl = avatarUrl;
-  await req.user.save();
-  res.json({ avatarUrl });
+  let updatedUsername = "";
+
+  if (req.isAuthenticated && req.isAuthenticated()) {
+    const updatedUser = await User.findByIdAndUpdate(req.user._id, { $set: { avatarUrl } }, { new: true });
+    req.user = updatedUser;
+    updatedUsername = updatedUser.username;
+  } else if (req.session && req.session.guestUsername) {
+    req.session.guestAvatarUrl = avatarUrl;
+    updatedUsername = req.session.guestUsername;
+    await new Promise((resolve) => req.session.save(resolve));
+  }
+
+  if (updatedUsername) {
+    io.emit("user_avatar_updated", {
+      username: updatedUsername,
+      avatarUrl,
+    });
+    // Broadcast user_list update to all rooms where the user is active
+    for (const socketId of Object.keys(activeUsers)) {
+      const u = activeUsers[socketId];
+      if (u && u.username === updatedUsername && u.room) {
+        getUsersInRoom(u.room)
+          .then((occupants) => {
+            io.to(u.room).emit("user_list", occupants);
+          })
+          .catch(() => {});
+      }
+    }
+  }
+
+  return res.json({ avatarUrl });
 });
 
-app.put("/api/profile/bio", requireLogin, async (req, res) => {
+app.put("/api/profile/bio", requireUserOrGuest, async (req, res) => {
   const bio = String(req.body.bio || "").trim().slice(0, 160);
-  req.user.bio = bio;
-  await req.user.save();
-  res.json({ bio: req.user.bio });
+  if (req.isAuthenticated && req.isAuthenticated()) {
+    const updatedUser = await User.findByIdAndUpdate(req.user._id, { $set: { bio } }, { new: true });
+    req.user = updatedUser;
+    return res.json({ bio: updatedUser.bio });
+  }
+  if (req.session && req.session.guestUsername) {
+    req.session.guestBio = bio;
+    await new Promise((resolve) => req.session.save(resolve));
+    return res.json({ bio });
+  }
 });
 
 // Save initial Onboarding preferences
-app.put("/api/profile/onboarding", requireLogin, async (req, res) => {
+app.put("/api/profile/onboarding", requireUserOrGuest, async (req, res) => {
   try {
     const { interests, college, isPublicProfile } = req.body;
-    if (Array.isArray(interests)) {
-      req.user.interests = interests.map((i) => String(i).trim().slice(0, 30)).filter(Boolean).slice(0, 10);
+    const cleanInterests = Array.isArray(interests)
+      ? interests.map((i) => String(i).trim().slice(0, 30)).filter(Boolean).slice(0, 10)
+      : [];
+    const cleanCollege = typeof college === "string" ? college.trim().slice(0, 100) : "";
+    const cleanPrivacy = typeof isPublicProfile === "boolean" ? isPublicProfile : true;
+
+    if (req.isAuthenticated && req.isAuthenticated()) {
+      const updatedUser = await User.findByIdAndUpdate(
+        req.user._id,
+        {
+          $set: {
+            interests: cleanInterests,
+            college: cleanCollege,
+            isPublicProfile: cleanPrivacy,
+            isOnboarded: true,
+          },
+        },
+        { new: true }
+      );
+      req.user = updatedUser;
+      return res.json({
+        success: true,
+        interests: updatedUser.interests,
+        college: updatedUser.college,
+        isPublicProfile: updatedUser.isPublicProfile,
+        isOnboarded: true,
+      });
     }
-    if (typeof college === "string") {
-      req.user.college = college.trim().slice(0, 100);
+
+    if (req.session && req.session.guestUsername) {
+      req.session.guestInterests = cleanInterests;
+      req.session.guestCollege = cleanCollege;
+      req.session.guestIsPublicProfile = cleanPrivacy;
+      req.session.guestIsOnboarded = true;
+      await new Promise((resolve) => req.session.save(resolve));
+      return res.json({
+        success: true,
+        interests: cleanInterests,
+        college: cleanCollege,
+        isPublicProfile: cleanPrivacy,
+        isOnboarded: true,
+      });
     }
-    if (typeof isPublicProfile === "boolean") {
-      req.user.isPublicProfile = isPublicProfile;
-    }
-    req.user.isOnboarded = true;
-    await req.user.save();
-    res.json({
-      success: true,
-      interests: req.user.interests,
-      college: req.user.college,
-      isPublicProfile: req.user.isPublicProfile,
-      isOnboarded: true,
-    });
   } catch (err) {
     console.error("Onboarding failed:", err);
     res.status(500).json({ error: "Could not save onboarding preferences" });
@@ -468,23 +575,43 @@ app.put("/api/profile/onboarding", requireLogin, async (req, res) => {
 });
 
 // Update rich profile details (Bio, College, Interests, Privacy)
-app.put("/api/profile/details", requireLogin, async (req, res) => {
+app.put("/api/profile/details", requireUserOrGuest, async (req, res) => {
   try {
     const { bio, college, interests, isPublicProfile } = req.body;
-    if (typeof bio === "string") req.user.bio = bio.trim().slice(0, 160);
-    if (typeof college === "string") req.user.college = college.trim().slice(0, 100);
+    const update = {};
+    if (typeof bio === "string") update.bio = bio.trim().slice(0, 160);
+    if (typeof college === "string") update.college = college.trim().slice(0, 100);
     if (Array.isArray(interests)) {
-      req.user.interests = interests.map((i) => String(i).trim().slice(0, 30)).filter(Boolean).slice(0, 10);
+      update.interests = interests.map((i) => String(i).trim().slice(0, 30)).filter(Boolean).slice(0, 10);
     }
-    if (typeof isPublicProfile === "boolean") req.user.isPublicProfile = isPublicProfile;
-    await req.user.save();
-    res.json({
-      success: true,
-      bio: req.user.bio,
-      college: req.user.college,
-      interests: req.user.interests,
-      isPublicProfile: req.user.isPublicProfile,
-    });
+    if (typeof isPublicProfile === "boolean") update.isPublicProfile = isPublicProfile;
+
+    if (req.isAuthenticated && req.isAuthenticated()) {
+      const updatedUser = await User.findByIdAndUpdate(req.user._id, { $set: update }, { new: true });
+      req.user = updatedUser;
+      return res.json({
+        success: true,
+        bio: updatedUser.bio,
+        college: updatedUser.college,
+        interests: updatedUser.interests,
+        isPublicProfile: updatedUser.isPublicProfile,
+      });
+    }
+
+    if (req.session && req.session.guestUsername) {
+      if (update.bio !== undefined) req.session.guestBio = update.bio;
+      if (update.college !== undefined) req.session.guestCollege = update.college;
+      if (update.interests !== undefined) req.session.guestInterests = update.interests;
+      if (update.isPublicProfile !== undefined) req.session.guestIsPublicProfile = update.isPublicProfile;
+      await new Promise((resolve) => req.session.save(resolve));
+      return res.json({
+        success: true,
+        bio: req.session.guestBio || "",
+        college: req.session.guestCollege || "",
+        interests: req.session.guestInterests || [],
+        isPublicProfile: req.session.guestIsPublicProfile ?? true,
+      });
+    }
   } catch (err) {
     console.error("Profile update failed:", err);
     res.status(500).json({ error: "Could not update profile details" });
@@ -689,14 +816,19 @@ app.post("/api/rooms/:roomId/moderators", async (req, res) => {
 
 // ---- Friends System Routes ----
 
-app.get("/api/friends", requireLogin, async (req, res) => {
+app.get("/api/friends", requireUserOrGuest, async (req, res) => {
   try {
-    const user = await User.findById(req.user._id).lean();
-    const friendsList = user.friends || [];
+    let friendsList = [];
+    if (req.isAuthenticated && req.isAuthenticated()) {
+      const user = await User.findById(req.user._id).lean();
+      friendsList = user?.friends || [];
+    } else if (req.session && req.session.guestUsername) {
+      friendsList = req.session.guestFriends || [];
+    }
 
     const friendUsernames = friendsList.map((f) => f.username);
     const friendDocs = await User.find({ username: { $in: friendUsernames } })
-      .select("username displayName avatarUrl status")
+      .select("username displayName avatarUrl status college interests")
       .lean();
 
     const userMap = {};
@@ -709,9 +841,11 @@ app.get("/api/friends", requireLogin, async (req, res) => {
       const isOnline = Object.values(activeUsers).some((u) => u.username === f.username);
       return {
         username: f.username,
-        status: f.status,
+        status: f.status, // "incoming" | "outgoing" | "accepted"
         addedAt: f.addedAt,
         avatarUrl: doc?.avatarUrl || null,
+        college: doc?.college || "",
+        interests: doc?.interests || [],
         userStatus: doc?.status || "Online",
         isOnline,
       };
@@ -724,10 +858,12 @@ app.get("/api/friends", requireLogin, async (req, res) => {
   }
 });
 
-app.post("/api/friends/request", requireLogin, async (req, res) => {
+app.post("/api/friends/request", requireUserOrGuest, async (req, res) => {
   try {
+    const currentUsername = req.isAuthenticated && req.isAuthenticated() ? req.user.username : (req.session?.guestUsername || "");
     const targetUsername = String(req.body.username || "").trim();
-    if (!targetUsername || targetUsername === req.user.username) {
+
+    if (!targetUsername || targetUsername === currentUsername) {
       return res.status(400).json({ error: "Invalid target user" });
     }
 
@@ -736,20 +872,36 @@ app.post("/api/friends/request", requireLogin, async (req, res) => {
       return res.status(404).json({ error: "User not found" });
     }
 
-    const existing = req.user.friends.find((f) => f.username === targetUsername);
-    if (existing) {
-      return res.status(400).json({ error: "Friend request already exists" });
+    if (req.isAuthenticated && req.isAuthenticated()) {
+      const currentUser = await User.findById(req.user._id);
+      const existing = currentUser.friends.find((f) => f.username === targetUsername);
+      if (existing) {
+        return res.status(400).json({ error: "Friend request already exists" });
+      }
+
+      // Sender gets outgoing/sent status
+      currentUser.friends.push({ username: targetUsername, status: "outgoing", addedAt: new Date() });
+      await currentUser.save();
+    } else if (req.session && req.session.guestUsername) {
+      if (!req.session.guestFriends) req.session.guestFriends = [];
+      const existing = req.session.guestFriends.find((f) => f.username === targetUsername);
+      if (existing) {
+        return res.status(400).json({ error: "Friend request already exists" });
+      }
+      req.session.guestFriends.push({ username: targetUsername, status: "outgoing", addedAt: new Date() });
+      await new Promise((resolve) => req.session.save(resolve));
     }
 
-    req.user.friends.push({ username: targetUsername, status: "pending" });
-    await req.user.save();
-
-    targetUser.friends.push({ username: req.user.username, status: "pending" });
-    await targetUser.save();
+    // Target receiver gets incoming status
+    const existingInTarget = targetUser.friends.find((f) => f.username === currentUsername);
+    if (!existingInTarget) {
+      targetUser.friends.push({ username: currentUsername, status: "incoming", addedAt: new Date() });
+      await targetUser.save();
+    }
 
     io.to(`dm::${targetUsername}`).emit("friend_request_received", {
-      from: req.user.username,
-      avatarUrl: req.user.avatarUrl,
+      from: currentUsername,
+      avatarUrl: req.user?.avatarUrl || null,
     });
 
     res.json({ success: true, message: "Friend request sent" });
@@ -759,47 +911,75 @@ app.post("/api/friends/request", requireLogin, async (req, res) => {
   }
 });
 
-app.post("/api/friends/accept", requireLogin, async (req, res) => {
+app.post("/api/friends/accept", requireUserOrGuest, async (req, res) => {
   try {
-    const targetUsername = String(req.body.username || "").trim();
-    const targetUser = await User.findOne({ username: targetUsername });
-    if (!targetUser) return res.status(404).json({ error: "User not found" });
+    const currentUsername = req.isAuthenticated && req.isAuthenticated() ? req.user.username : (req.session?.guestUsername || "");
+    const senderUsername = String(req.body.username || "").trim();
 
-    const fIdx = req.user.friends.findIndex((f) => f.username === targetUsername);
-    if (fIdx > -1) {
-      req.user.friends[fIdx].status = "accepted";
-      await req.user.save();
+    if (req.isAuthenticated && req.isAuthenticated()) {
+      const currentUser = await User.findById(req.user._id);
+      const fIdx = currentUser.friends.findIndex((f) => f.username === senderUsername);
+      if (fIdx > -1) {
+        currentUser.friends[fIdx].status = "accepted";
+      } else {
+        currentUser.friends.push({ username: senderUsername, status: "accepted", addedAt: new Date() });
+      }
+      await currentUser.save();
+    } else if (req.session && req.session.guestUsername) {
+      if (!req.session.guestFriends) req.session.guestFriends = [];
+      const fIdx = req.session.guestFriends.findIndex((f) => f.username === senderUsername);
+      if (fIdx > -1) {
+        req.session.guestFriends[fIdx].status = "accepted";
+      } else {
+        req.session.guestFriends.push({ username: senderUsername, status: "accepted", addedAt: new Date() });
+      }
+      await new Promise((resolve) => req.session.save(resolve));
     }
 
-    const tIdx = targetUser.friends.findIndex((f) => f.username === req.user.username);
-    if (tIdx > -1) {
-      targetUser.friends[tIdx].status = "accepted";
-      await targetUser.save();
+    const senderUser = await User.findOne({ username: senderUsername });
+    if (senderUser) {
+      const tIdx = senderUser.friends.findIndex((f) => f.username === currentUsername);
+      if (tIdx > -1) {
+        senderUser.friends[tIdx].status = "accepted";
+      } else {
+        senderUser.friends.push({ username: currentUsername, status: "accepted", addedAt: new Date() });
+      }
+      await senderUser.save();
     }
 
-    io.to(`dm::${targetUsername}`).emit("friend_request_accepted", {
-      by: req.user.username,
+    io.to(`dm::${senderUsername}`).emit("friend_request_accepted", {
+      by: currentUsername,
     });
 
     res.json({ success: true, message: "Friend request accepted" });
   } catch (err) {
+    console.error("Accept friend failed:", err);
     res.status(500).json({ error: "Could not accept friend request" });
   }
 });
 
-app.delete("/api/friends/:username", requireLogin, async (req, res) => {
+app.delete("/api/friends/:username", requireUserOrGuest, async (req, res) => {
   try {
+    const currentUsername = req.isAuthenticated && req.isAuthenticated() ? req.user.username : (req.session?.guestUsername || "");
     const targetUsername = String(req.params.username || "").trim();
-    req.user.friends = req.user.friends.filter((f) => f.username !== targetUsername);
-    await req.user.save();
+
+    if (req.isAuthenticated && req.isAuthenticated()) {
+      await User.findByIdAndUpdate(req.user._id, {
+        $pull: { friends: { username: targetUsername } },
+      });
+    } else if (req.session && req.session.guestFriends) {
+      req.session.guestFriends = req.session.guestFriends.filter((f) => f.username !== targetUsername);
+      await new Promise((resolve) => req.session.save(resolve));
+    }
 
     await User.updateOne(
       { username: targetUsername },
-      { $pull: { friends: { username: req.user.username } } }
+      { $pull: { friends: { username: currentUsername } } }
     );
 
-    res.json({ success: true, message: "Friend removed" });
+    res.json({ success: true, message: "Friend relationship removed" });
   } catch (err) {
+    console.error("Delete friend failed:", err);
     res.status(500).json({ error: "Could not remove friend" });
   }
 });
@@ -1266,9 +1446,24 @@ io.on("connection", (socket) => {
         .limit(50)
         .lean();
 
+      const authors = [...new Set(history.map((m) => m.username))];
+      const authorDocs = await User.find({ username: { $in: authors } }).select("username avatarUrl").lean();
+      const authorAvatarMap = {};
+      authorDocs.forEach((a) => {
+        authorAvatarMap[a.username] = a.avatarUrl || null;
+      });
+
+      const enrichedHistory = history.reverse().map((m) => ({
+        ...m,
+        messageId: String(m._id),
+        user: m.username,
+        avatarUrl: authorAvatarMap[m.username] || null,
+        time: m.createdAt,
+      }));
+
       const roomDoc = await Room.findOne({ roomId: safeRoom }).lean();
       socket.emit("room_history", {
-        messages: history.reverse(),
+        messages: enrichedHistory,
         roomInfo: {
           roomId: safeRoom,
           name: roomDoc?.name || `Room #${safeRoom}`,

@@ -14,7 +14,7 @@ const userSchema = new mongoose.Schema({
   friends: [
     {
       username: { type: String, required: true },
-      status: { type: String, enum: ["pending", "accepted"], default: "pending" },
+      status: { type: String, enum: ["pending", "accepted", "outgoing", "incoming", "sent"], default: "incoming" },
       addedAt: { type: Date, default: Date.now },
     },
   ],
