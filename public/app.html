@@ -539,21 +539,30 @@
     </aside>
 
     <main class="chat-main">
-      <!-- Mobile Top Bar -->
-      <div class="mobile-topbar">
-        <div style="display:flex; align-items:center; gap:0.4rem;">
-          <button id="mobile-back-lobby-btn" class="btn-icon-tiny" style="font-size:1.15rem;" title="Back to Lobby">←</button>
-          <button id="mobile-menu-btn" class="menu-btn" title="Open Menu">☰</button>
+      <!-- Mobile Top Bar (Sticky Header) -->
+      <header class="mobile-topbar">
+        <div class="topbar-left-actions">
+          <button id="mobile-back-lobby-btn" class="btn-topbar-action" title="Leave to Lobby">
+            <span>←</span>
+          </button>
+          <button id="mobile-menu-btn" class="btn-topbar-action menu-btn" title="Open Room Sidebar">
+            <span>☰</span>
+          </button>
         </div>
         <div class="mobile-room-info">
-          <span id="mobile-room-name">Room</span>
+          <div style="display:flex; align-items:center; justify-content:center; gap:0.3rem;">
+            <span id="mobile-room-name" class="mobile-room-title">Room</span>
+            <span id="mobile-room-cat" class="cat-pill" style="font-size:0.62rem; padding:0.05rem 0.35rem;">General</span>
+          </div>
           <span id="mobile-online-tag" class="mobile-online-tag">🟢 1 online</span>
         </div>
-        <div style="display:flex; align-items:center; gap:0.3rem;">
-          <button id="mobile-members-btn" class="btn-icon-tiny" title="Members List">👥</button>
-          <button id="mobile-share-btn" class="btn-icon-tiny" title="Copy Link">🔗</button>
+        <div class="topbar-right-actions">
+          <button id="mobile-members-btn" class="btn-topbar-action" title="All Members">👥</button>
+          <button id="mobile-sound-btn" class="btn-topbar-action" title="Toggle Sound">🔔</button>
+          <button id="mobile-theme-btn" class="btn-topbar-action global-theme-toggle" title="Toggle Theme">🌙</button>
+          <button id="mobile-share-btn" class="btn-topbar-action" title="Copy Invite Link">🔗</button>
         </div>
-      </div>
+      </header>
 
       <!-- Room Members Drawer Panel -->
       <div id="room-members-drawer" class="room-members-drawer hidden">

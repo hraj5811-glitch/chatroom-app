@@ -275,14 +275,29 @@ function playMessageChime() {
 }
 
 // Sound toggle
+const mobileSoundBtn = document.getElementById("mobile-sound-btn");
+function updateSoundButtons() {
+  const icon = soundEnabled ? "🔔" : "🔕";
+  if (soundToggleBtn) soundToggleBtn.textContent = icon;
+  if (mobileSoundBtn) mobileSoundBtn.textContent = icon;
+}
+
 if (soundToggleBtn) {
-  soundToggleBtn.textContent = soundEnabled ? "🔔" : "🔕";
   soundToggleBtn.addEventListener("click", () => {
     soundEnabled = !soundEnabled;
     localStorage.setItem("chat-sound", soundEnabled ? "true" : "false");
-    soundToggleBtn.textContent = soundEnabled ? "🔔" : "🔕";
+    updateSoundButtons();
   });
 }
+
+if (mobileSoundBtn) {
+  mobileSoundBtn.addEventListener("click", () => {
+    soundEnabled = !soundEnabled;
+    localStorage.setItem("chat-sound", soundEnabled ? "true" : "false");
+    updateSoundButtons();
+  });
+}
+updateSoundButtons();
 
 // ---- Check auth status on page load ----
 async function checkAuth() {
@@ -909,10 +924,15 @@ function enterChat(roomId, roomInfo) {
   showScreen(chatScreen);
   applyCategoryWallpaper(roomInfo?.category || "General");
 
-  roomTitle.textContent = roomInfo?.name || `Room #${roomId}`;
-  mobileRoomName.textContent = roomInfo?.name || `Room #${roomId}`;
-  roomCatPill.textContent = roomInfo?.category || "General";
-  roomCodeBadge.textContent = `#${roomId}`;
+  const roomName = roomInfo?.name || `Room #${roomId}`;
+  const roomCategory = roomInfo?.category || "General";
+
+  if (roomTitle) roomTitle.textContent = roomName;
+  if (mobileRoomName) mobileRoomName.textContent = roomName;
+  if (roomCatPill) roomCatPill.textContent = roomCategory;
+  const mobileCatPill = document.getElementById("mobile-room-cat");
+  if (mobileCatPill) mobileCatPill.textContent = roomCategory;
+  if (roomCodeBadge) roomCodeBadge.textContent = `#${roomId}`;
 
   const drawer = document.getElementById("room-members-drawer");
   if (drawer) drawer.classList.add("hidden");
@@ -930,6 +950,23 @@ function enterChat(roomId, roomInfo) {
   socket.emit("join_room", { room: roomId });
   messageInput.focus();
 }
+
+function copyRoomInviteLink() {
+  if (!currentRoomId) return;
+  const inviteUrl = `${window.location.origin}/app.html?room=${currentRoomId}`;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(inviteUrl).then(() => {
+      alert(`Room invite link copied to clipboard!\n${inviteUrl}`);
+    }).catch(() => {
+      prompt("Copy room invite link:", inviteUrl);
+    });
+  } else {
+    prompt("Copy room invite link:", inviteUrl);
+  }
+}
+
+if (sidebarCopyLinkBtn) sidebarCopyLinkBtn.addEventListener("click", copyRoomInviteLink);
+if (mobileShareBtn) mobileShareBtn.addEventListener("click", copyRoomInviteLink);
 
 // Bind room members drawer buttons
 document.addEventListener("click", (e) => {
