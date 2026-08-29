@@ -6,8 +6,8 @@ async function generateUniqueUsername() {
 
   while (exists) {
     const randomNum = Math.floor(10000 + Math.random() * 90000); // 5-digit number
-    username = `User${randomNum}`;
-    exists = await User.findOne({ username });
+    username = `User_${randomNum}`;
+    exists = await User.findOne({ username: { $regex: new RegExp(`^${username}$`, "i") } });
   }
 
   return username;

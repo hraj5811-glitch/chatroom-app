@@ -3,7 +3,31 @@ const mongoose = require("mongoose");
 const messageSchema = new mongoose.Schema({
   room: { type: String, required: true, index: true },
   username: { type: String, required: true, index: true },
-  text: { type: String, required: true, maxlength: 1000 },
+  text: { type: String, default: "", maxlength: 1000 },
+  replyTo: {
+    messageId: { type: mongoose.Schema.Types.ObjectId, ref: "Message", default: null },
+    username: { type: String, default: "" },
+    text: { type: String, default: "" },
+  },
+  poll: {
+    question: { type: String, default: "" },
+    options: [
+      {
+        text: { type: String, required: true },
+        votes: [{ type: String }], // list of usernames who voted
+      },
+    ],
+    closed: { type: Boolean, default: false },
+  },
+  reactions: [
+    {
+      emoji: { type: String, required: true },
+      count: { type: Number, default: 0 },
+      users: [{ type: String }],
+    },
+  ],
+  imageUrl: { type: String, default: null },
+  isDeleted: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now, index: true },
 });
 

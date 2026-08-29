@@ -3,24 +3,24 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Kothaa Chat</title>
+  <title>Kothaa — Real-time Chatrooms & Communities</title>
+  <meta name="description" content="Instant real-time chatrooms, 1-on-1 private messaging, communities and drop-in conversations." />
+  <meta name="theme-color" content="#6366f1" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
-  <!-- Animated aurora backdrop, always present behind every screen -->
-  <div class="backdrop" aria-hidden="true">
-    <div class="orb orb-a"></div>
-    <div class="orb orb-b"></div>
-    <div class="orb orb-c"></div>
-    <div class="grid-veil"></div>
-  </div>
+  <!-- Ambient light blobs in background -->
+  <div class="glow glow-1" aria-hidden="true"></div>
+  <div class="glow glow-2" aria-hidden="true"></div>
+  <div class="glow glow-3" aria-hidden="true"></div>
 
-  <!-- Auth screen: choose Google or Guest -->
-  <div id="auth-screen" class="screen">
+  <!-- Landing / Login Screen -->
+  <div id="login-screen" class="screen">
     <div class="card-wrap">
       <div class="glow-frame">
         <div class="card">
@@ -31,70 +31,279 @@
               </span>
               <span class="brand-name">kothaa</span>
             </span>
-            <h1>Welcome to Kothaa</h1>
-            <p class="sub">Sign in to keep your name, your rooms, and your chat history — or jump in as a guest.</p>
+            <h1>Drop into the conversation.</h1>
+            <p class="sub">Instant chatrooms, rich media, live polls & private messaging. No clutter.</p>
           </div>
 
-          <div class="form">
-            <a href="/auth/google" class="btn-google field-in" style="animation-delay:120ms">
-              <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.9 32.6 29.4 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.5 6.1 29.5 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.7-.4-4z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 16 19 13 24 13c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.5 6.1 29.5 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 10-2 13.5-5.2l-6.2-5.3C29.4 35.4 26.8 36 24 36c-5.3 0-9.8-3.4-11.3-8.1l-6.5 5C9.6 39.5 16.3 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.3 4.3-4.1 5.7l6.2 5.3C39.9 36.9 44 31 44 24c0-1.3-.1-2.7-.4-3.5z"/></svg>
-              Sign in with Google
+          <div class="auth-buttons">
+            <a href="/auth/google" class="btn btn-google">
+              <svg class="google-icon" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+              </svg>
+              <span>Continue with Google</span>
             </a>
-            <button id="guest-btn" class="btn-outline field-in" style="animation-delay:220ms">Continue as Guest</button>
+
+            <div class="divider"><span>or join anonymously</span></div>
+
+            <button id="guest-btn" class="btn btn-ghost">Continue as Guest</button>
           </div>
 
-          <div class="live field-in" style="animation-delay:420ms">
-            <span class="live-dot"></span>
-            <span>No account needed to try it out</span>
-          </div>
+          <p class="terms">By continuing, you agree to drop-in respectfully.</p>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Room choice screen: have an ID, or create a new room -->
+  <!-- Room Choice Screen: Hub for Discover, DMs, Friends, Create, and Join -->
   <div id="room-choice-screen" class="screen hidden">
-    <div class="card-wrap">
+    <div class="card-wrap wide">
       <div class="glow-frame">
         <div class="card">
-          <div class="card-head">
-            <span class="brand">
-              <span class="brand-icon badge-pulse">
+          <!-- Header Bar -->
+          <div class="hub-header">
+            <div class="brand">
+              <span class="brand-icon small badge-pulse">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22z"/></svg>
               </span>
               <span class="brand-name">kothaa</span>
-            </span>
-            <h1>Let's get you chatting</h1>
-            <p id="signed-in-as" class="sub"></p>
+            </div>
+            <div class="hub-user-meta">
+              <div id="header-avatar-wrap" class="header-avatar-wrap hidden">
+                <img id="header-user-avatar" class="user-avatar small" src="" alt="Avatar" />
+              </div>
+              <span id="signed-in-as" class="user-pill"></span>
+              <a href="#" id="profile-link" class="btn btn-sm btn-outline hidden">Profile</a>
+              <a href="/auth/logout" class="btn btn-sm btn-danger-ghost">Log out</a>
+            </div>
           </div>
 
-          <form id="join-form" class="form">
-            <label class="field field-in" style="animation-delay:120ms">
-              <span class="field-label">Have a room ID?</span>
-              <input id="room-input" class="field-input" placeholder="e.g. A7K9P2" maxlength="6" autocomplete="off" style="text-transform:uppercase" />
-            </label>
-            <p id="join-error" class="error-text hidden"></p>
-
-            <button id="join-btn" type="submit" class="join-btn field-in" style="animation-delay:200ms">
-              <span class="join-btn-sheen" aria-hidden="true"></span>
-              <span class="join-btn-inner">
-                <span class="btn-label">Join room</span>
-                <svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-              </span>
-            </button>
-
-            <div class="divider field-in" style="animation-delay:260ms"><span>or</span></div>
-
-            <button id="create-room-btn" type="button" class="btn-outline field-in" style="animation-delay:320ms">Create a new room</button>
-          </form>
-
-          <div class="screen-links field-in" style="animation-delay:400ms">
-            <a href="#" id="profile-link" class="logout-link hidden">My profile</a>
-            <a href="/auth/logout" class="logout-link">Log out</a>
+          <!-- Navigation Sub-tabs in Hub -->
+          <div class="hub-tabs">
+            <button id="tab-discover-btn" class="hub-tab-btn active">🔍 Discover</button>
+            <button id="tab-dms-btn" class="hub-tab-btn">💬 Direct Messages <span id="dm-tab-unread" class="badge-count hidden">0</span></button>
+            <button id="tab-friends-btn" class="hub-tab-btn">👥 Friends <span id="friends-tab-badge" class="badge-count hidden">0</span></button>
+            <button id="tab-create-btn" class="hub-tab-btn">➕ Create Room</button>
+            <button id="tab-join-btn" class="hub-tab-btn">🔑 Join Code</button>
           </div>
+
+          <!-- SECTION 1: Discover Public Rooms -->
+          <div id="hub-discover-pane" class="hub-pane active">
+            <div class="discover-controls">
+              <input type="text" id="discover-search-input" class="field-input" placeholder="🔍 Search rooms by name, topic, or code..." />
+              <div class="category-chips-wrap">
+                <button class="category-chip active" data-cat="All">All</button>
+                <button class="category-chip" data-cat="General">💬 General</button>
+                <button class="category-chip" data-cat="Tech">💻 Tech</button>
+                <button class="category-chip" data-cat="Gaming">🎮 Gaming</button>
+                <button class="category-chip" data-cat="Study">📚 Study</button>
+                <button class="category-chip" data-cat="Music">🎵 Music</button>
+                <button class="category-chip" data-cat="Movies">🎬 Movies</button>
+                <button class="category-chip" data-cat="Casual">☕ Casual</button>
+              </div>
+            </div>
+
+            <div id="discover-rooms-grid" class="rooms-grid">
+              <p class="sub" style="grid-column: 1/-1; text-align:center; padding: 2rem 0;">Loading public rooms...</p>
+            </div>
+          </div>
+
+          <!-- SECTION 2: 1-on-1 Direct Messages (DMs) -->
+          <div id="hub-dms-pane" class="hub-pane hidden">
+            <div class="dm-layout">
+              <!-- DM Sidebar / Conversations List -->
+              <div class="dm-sidebar">
+                <div class="dm-sidebar-head">
+                  <h4>Conversations</h4>
+                  <button id="new-dm-btn" class="btn btn-sm btn-outline" title="Start new DM">➕ New Chat</button>
+                </div>
+                <div id="dm-conversations-list" class="dm-conversations-list">
+                  <p class="sub" style="text-align: center; padding: 2.5rem 1rem;">No direct messages yet.<br>Click "New Chat" or click any user to chat 1-on-1!</p>
+                </div>
+              </div>
+
+              <!-- DM Active Chat Window -->
+              <div id="dm-chat-window" class="dm-chat-window empty">
+                <div id="dm-placeholder" class="dm-placeholder">
+                  <span class="dm-placeholder-icon">💬</span>
+                  <h3>Select a conversation or start a new chat</h3>
+                  <p class="sub">1-on-1 Direct Messages are private and delivered instantly in real-time.</p>
+                </div>
+
+                <div id="dm-active-chat" class="dm-active-chat hidden">
+                  <div class="dm-header">
+                    <div class="dm-partner-info">
+                      <button id="dm-back-btn" class="btn-icon-tiny mobile-only" title="Back to conversations">←</button>
+                      <img id="dm-partner-avatar" class="user-avatar small" src="" alt="Avatar" />
+                      <div>
+                        <h3 id="dm-partner-name">User</h3>
+                        <span id="dm-partner-status" class="dm-status-tag">🟢 Online</span>
+                      </div>
+                    </div>
+                    <button id="close-dm-chat-btn" class="btn-icon-tiny" title="Close chat">✕</button>
+                  </div>
+
+                  <div id="dm-messages" class="dm-messages"></div>
+                  <div id="dm-typing" class="dm-typing-indicator"></div>
+
+                  <form id="dm-message-form" class="dm-form">
+                    <input type="file" id="dm-file-input" accept="image/*" class="hidden" />
+                    <button type="button" id="dm-attach-btn" class="chat-action-btn" title="Send Image">📎</button>
+                    <input id="dm-input" type="text" placeholder="Type a direct message..." autocomplete="off" />
+                    <button type="submit" id="dm-send-btn">Send</button>
+                  </form>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- SECTION 3: Friends & Social Connections -->
+          <div id="hub-friends-pane" class="hub-pane hidden">
+            <div class="friends-layout">
+              <div class="friends-head">
+                <div class="add-friend-box">
+                  <input type="text" id="add-friend-input" class="field-input" placeholder="Enter username (e.g. User4921)..." />
+                  <button id="add-friend-btn" class="btn btn-outline">Send Friend Request</button>
+                </div>
+                <p id="friend-request-msg" class="error-text hidden"></p>
+              </div>
+
+              <!-- Pending Requests -->
+              <div id="pending-requests-section" class="friends-section hidden">
+                <h4 class="section-title">Pending Requests (<span id="pending-requests-count">0</span>)</h4>
+                <div id="pending-requests-list" class="friends-grid"></div>
+              </div>
+
+              <!-- Friends Grid -->
+              <div class="friends-section">
+                <h4 class="section-title">My Friends (<span id="friends-count">0</span>)</h4>
+                <div id="friends-list" class="friends-grid">
+                  <p class="sub" style="grid-column: 1/-1; text-align: center; padding: 2rem 0;">No friends added yet. Enter a username above to send a request!</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- SECTION 4: Create a Room -->
+          <div id="hub-create-pane" class="hub-pane hidden">
+            <form id="create-room-form" class="form">
+              <label class="field">
+                <span class="field-label">Room Name</span>
+                <input id="create-room-name" class="field-input" placeholder="e.g. Web Devs Corner" maxlength="50" required />
+              </label>
+
+              <label class="field">
+                <span class="field-label">Description (Optional)</span>
+                <input id="create-room-desc" class="field-input" placeholder="What's this room about?" maxlength="200" />
+              </label>
+
+              <div class="field-row">
+                <label class="field" style="flex:1">
+                  <span class="field-label">Category</span>
+                  <select id="create-room-cat" class="field-input select-input">
+                    <option value="General">💬 General</option>
+                    <option value="Tech">💻 Tech & Coding</option>
+                    <option value="Gaming">🎮 Gaming & Esports</option>
+                    <option value="Study">📚 Study & Work</option>
+                    <option value="Music">🎵 Music</option>
+                    <option value="Movies">🎬 Movies & TV</option>
+                    <option value="Casual">☕ Casual Hangout</option>
+                  </select>
+                </label>
+
+                <label class="field" style="flex:1">
+                  <span class="field-label">Room Privacy</span>
+                  <select id="create-room-privacy" class="field-input select-input">
+                    <option value="public">🌐 Public (Discoverable by everyone)</option>
+                    <option value="private">🔒 Private (Join via Code only)</option>
+                  </select>
+                </label>
+              </div>
+
+              <!-- Password Protection Option -->
+              <label class="field checkbox-field" style="margin-top: 0.25rem;">
+                <input type="checkbox" id="create-room-pass-toggle" />
+                <span class="field-label" style="margin-bottom:0; cursor:pointer;">🔒 Protect this room with a Passcode</span>
+              </label>
+
+              <div id="create-room-pass-wrap" class="field hidden" style="margin-top: 0.25rem;">
+                <span class="field-label">Room Passcode</span>
+                <input type="password" id="create-room-pass-input" class="field-input" placeholder="e.g. Secret@123" maxlength="30" autocomplete="new-password" />
+                <div class="pass-rules-box">
+                  <span class="rules-head">Password Requirements:</span>
+                  <div class="rules-grid">
+                    <span id="rule-len" class="rule-item">📏 Min 6 characters</span>
+                    <span id="rule-cap" class="rule-item">🔤 1 Uppercase (A-Z)</span>
+                    <span id="rule-num" class="rule-item">🔢 1 Number (0-9)</span>
+                    <span id="rule-spec" class="rule-item">⚡ 1 Special (!@#$%...)</span>
+                  </div>
+                </div>
+              </div>
+
+              <p id="create-error" class="error-text hidden"></p>
+
+              <button type="submit" id="create-room-submit-btn" class="join-btn">
+                <span class="join-btn-sheen" aria-hidden="true"></span>
+                <span class="join-btn-inner">
+                  <span class="btn-label">Create & Launch Room</span>
+                  <svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+                </span>
+              </button>
+            </form>
+          </div>
+
+          <!-- SECTION 5: Join by Code -->
+          <div id="hub-join-pane" class="hub-pane hidden">
+            <form id="join-form" class="form">
+              <label class="field">
+                <span class="field-label">Enter 6-character Room Code</span>
+                <input id="room-input" class="field-input" placeholder="e.g. A7K9P2" maxlength="6" autocomplete="off" style="text-transform:uppercase; font-family: var(--font-mono); letter-spacing: 0.1em; font-size: 1.1rem; text-align: center;" />
+              </label>
+              <p id="join-error" class="error-text hidden"></p>
+
+              <button id="join-btn" type="submit" class="join-btn">
+                <span class="join-btn-sheen" aria-hidden="true"></span>
+                <span class="join-btn-inner">
+                  <span class="btn-label">Join Room</span>
+                  <svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+                </span>
+              </button>
+            </form>
+          </div>
+
         </div>
       </div>
     </div>
+
+    <!-- Mobile Bottom Navigation Bar in Lobby -->
+    <nav class="mobile-bottom-nav">
+      <button id="nav-discover" class="nav-item active">
+        <span class="nav-icon">🔍</span>
+        <span class="nav-label">Discover</span>
+      </button>
+      <button id="nav-dms" class="nav-item">
+        <span class="nav-icon">💬</span>
+        <span class="nav-label">DMs</span>
+      </button>
+      <button id="nav-friends" class="nav-item">
+        <span class="nav-icon">👥</span>
+        <span class="nav-label">Friends</span>
+      </button>
+      <button id="nav-create" class="nav-item">
+        <span class="nav-icon">➕</span>
+        <span class="nav-label">Create</span>
+      </button>
+      <button id="nav-join" class="nav-item">
+        <span class="nav-icon">🔑</span>
+        <span class="nav-label">Join</span>
+      </button>
+      <button id="nav-profile" class="nav-item">
+        <span class="nav-icon">👤</span>
+        <span class="nav-label">Profile</span>
+      </button>
+    </nav>
   </div>
 
   <!-- Room created screen: shows the new ID to copy and share -->
@@ -109,22 +318,25 @@
               </span>
               <span class="brand-name">kothaa</span>
             </span>
-            <h1>Room created!</h1>
-            <p class="sub">Share this code with friends so they can join you.</p>
+            <h1 id="created-room-title-display">Room Created!</h1>
+            <p class="sub" id="created-room-subtitle">Share this code with friends so they can join you.</p>
           </div>
 
-          <div class="room-id-display field-in" style="animation-delay:120ms">
+          <div class="room-id-display">
             <span id="new-room-id">------</span>
-            <button id="copy-room-id" title="Copy">📋</button>
+            <button id="copy-room-id" title="Copy code">📋</button>
+            <button id="copy-room-link" title="Copy invite link">🔗</button>
           </div>
 
-          <button id="enter-room-btn" class="join-btn field-in" style="animation-delay:220ms">
+          <button id="enter-room-btn" class="join-btn">
             <span class="join-btn-sheen" aria-hidden="true"></span>
             <span class="join-btn-inner">
-              <span class="btn-label">Enter chat</span>
+              <span class="btn-label">Enter Chat Now</span>
               <svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
             </span>
           </button>
+          
+          <button id="created-screen-back-btn" class="btn btn-outline" style="width:100%; margin-top:0.75rem;">← Back to Lobby</button>
         </div>
       </div>
     </div>
@@ -135,6 +347,10 @@
     <div class="card-wrap wide">
       <div class="glow-frame">
         <div class="card">
+          <div style="display:flex; justify-content:flex-start; width:100%;">
+            <button id="profile-top-back-btn" class="back-pill-btn">← Back to Lobby</button>
+          </div>
+
           <div class="card-head">
             <span class="brand">
               <span class="brand-icon badge-pulse">
@@ -145,25 +361,44 @@
             <h1>My Profile</h1>
           </div>
 
+          <!-- Avatar Uploader & Info -->
+          <div class="profile-avatar-section">
+            <div class="profile-avatar-circle-wrap">
+              <img id="profile-current-avatar" class="user-avatar large" src="" alt="Avatar" />
+              <button id="change-avatar-btn" class="avatar-edit-overlay" title="Upload new photo">📷</button>
+              <input type="file" id="avatar-file-input" accept="image/*" class="hidden" />
+            </div>
+            <p class="sub" style="font-size:0.8rem; margin-top:0.4rem;">Tap camera icon to upload custom photo</p>
+          </div>
+
           <div class="form">
-            <label class="field field-in" style="animation-delay:100ms">
+            <label class="field">
               <span class="field-label">Username</span>
               <div class="username-row">
                 <input id="username-input" class="field-input" maxlength="24" />
-                <button id="save-username-btn" class="btn-outline">Save</button>
+                <button id="save-username-btn" class="btn btn-primary btn-save">Save</button>
               </div>
               <p id="username-msg" class="error-text hidden"></p>
             </label>
+
+            <label class="field">
+              <span class="field-label">About / Bio</span>
+              <div class="username-row">
+                <input id="bio-input" class="field-input" placeholder="Tell something about yourself..." maxlength="160" />
+                <button id="save-bio-btn" class="btn btn-primary btn-save">Save</button>
+              </div>
+              <p id="bio-msg" class="error-text hidden"></p>
+            </label>
           </div>
 
-          <h3 class="rooms-heading field-in" style="animation-delay:180ms">Past rooms</h3>
-          <div id="rooms-list" class="rooms-list field-in" style="animation-delay:220ms">
+          <h3 class="rooms-heading">Joined / Created Rooms</h3>
+          <div id="rooms-list" class="rooms-list">
             <p class="sub">No rooms yet — join or create one!</p>
           </div>
 
           <div id="room-messages-preview" class="room-messages-preview hidden"></div>
 
-          <button id="back-to-rooms-btn" class="btn-outline field-in" style="animation-delay:300ms">Back</button>
+          <button id="back-to-rooms-btn" class="btn btn-outline" style="width:100%; margin-top:1.5rem">← Back to Lobby</button>
         </div>
       </div>
     </div>
@@ -171,33 +406,200 @@
 
   <!-- Chat screen -->
   <div id="chat-screen" class="screen hidden">
-    <aside class="sidebar">
+    <!-- Sidebar backdrop for mobile -->
+    <div id="sidebar-backdrop" class="sidebar-backdrop hidden"></div>
+
+    <aside id="chat-sidebar" class="sidebar">
       <div class="sidebar-brand">
         <span class="brand-icon small">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22z"/></svg>
         </span>
         <span class="brand-name small">kothaa</span>
+        <button id="close-sidebar-btn" class="mobile-close-btn" title="Close sidebar">✕</button>
       </div>
+
       <div class="sidebar-header">
-        <h2 id="room-title">Room</h2>
-        <button id="theme-toggle" title="Toggle theme">🌙</button>
+        <div class="room-meta-badge">
+          <h2 id="room-title">Room</h2>
+          <span id="room-cat-pill" class="cat-pill">General</span>
+        </div>
+        <div class="sidebar-top-actions">
+          <button id="sound-toggle" class="btn-icon-tiny" title="Toggle Sound">🔔</button>
+          <button id="theme-toggle" class="btn-icon-tiny" title="Toggle theme">🌙</button>
+        </div>
       </div>
-      <h3>Online</h3>
+
+      <div class="room-share-box">
+        <span id="room-code-badge" class="code-badge">#------</span>
+        <button id="sidebar-copy-link-btn" class="btn-icon-tiny" title="Copy Invite Link">🔗</button>
+      </div>
+
+      <!-- User Status Selector -->
+      <div class="status-box">
+        <label class="field-label" style="font-size:0.7rem;">My Status</label>
+        <select id="status-select" class="field-input status-select-input">
+          <option value="Online">🟢 Online</option>
+          <option value="Studying">📚 Studying</option>
+          <option value="Gaming">🎮 Gaming</option>
+          <option value="Chilling">☕ Chilling</option>
+          <option value="Listening">🎧 Listening</option>
+          <option value="DND">⛔ Do Not Disturb</option>
+        </select>
+      </div>
+
+      <h3>Online (<span id="online-count">0</span>)</h3>
       <ul id="user-list"></ul>
-      <a href="#" id="back-to-choice-link" class="logout-link">Leave room</a>
-      <a href="/auth/logout" class="logout-link sidebar-logout">Log out</a>
+
+      <div class="sidebar-footer">
+        <button id="desktop-leave-room-btn" class="btn btn-sm btn-outline" style="width:100%; margin-bottom:0.4rem;">← Leave to Lobby</button>
+        <a href="#" id="back-to-choice-link" class="logout-link" style="display:none;">← Leave Room</a>
+        <a href="/auth/logout" class="logout-link sidebar-logout">Log out</a>
+      </div>
     </aside>
 
     <main class="chat-main">
+      <!-- Mobile Top Bar -->
+      <div class="mobile-topbar">
+        <div style="display:flex; align-items:center; gap:0.4rem;">
+          <button id="mobile-back-lobby-btn" class="btn-icon-tiny" style="font-size:1.15rem;" title="Back to Lobby">←</button>
+          <button id="mobile-menu-btn" class="menu-btn" title="Open Menu">☰</button>
+        </div>
+        <div class="mobile-room-info">
+          <span id="mobile-room-name">Room</span>
+          <span id="mobile-online-tag" class="mobile-online-tag">🟢 1 online</span>
+        </div>
+        <button id="mobile-share-btn" class="btn-icon-tiny" title="Copy Link">🔗</button>
+      </div>
+
+      <!-- Sticky Pinned Announcement Bar -->
+      <div id="pinned-announcement" class="pinned-announcement hidden">
+        <div class="pinned-content">
+          <span class="pinned-icon">📌</span>
+          <div class="pinned-text-wrap">
+            <span id="pinned-author" class="pinned-author">Pinned Announcement</span>
+            <span id="pinned-text" class="pinned-text"></span>
+          </div>
+        </div>
+        <div class="pinned-actions">
+          <button type="button" id="jump-to-pin-btn" class="btn-pin-action" title="Jump to message">View</button>
+          <button type="button" id="unpin-btn" class="btn-pin-action hidden" title="Unpin announcement">✕</button>
+        </div>
+      </div>
+
       <div id="messages" class="messages"></div>
       <div id="typing-indicator" class="typing-indicator"></div>
       <div id="emoji-panel" class="emoji-panel hidden"></div>
+
+      <!-- Replying preview banner -->
+      <div id="replying-banner" class="replying-banner hidden">
+        <div class="replying-content">
+          <span class="replying-tag">Replying to <strong id="replying-user"></strong></span>
+          <span id="replying-snippet" class="replying-snippet"></span>
+        </div>
+        <button type="button" id="cancel-reply-btn" class="cancel-reply-btn" title="Cancel reply">✕</button>
+      </div>
+
       <form id="message-form" class="message-form">
-        <button type="button" id="emoji-btn" title="Emoji">😊</button>
+        <input type="file" id="image-file-input" accept="image/*" class="hidden" />
+        <button type="button" id="attach-btn" class="chat-action-btn" title="Send Image">📎</button>
+        <button type="button" id="poll-btn" class="chat-action-btn" title="Create Poll">📊</button>
+        <button type="button" id="emoji-btn" class="chat-action-btn" title="Emoji">😊</button>
         <input id="message-input" type="text" placeholder="Type a message..." autocomplete="off" />
-        <button type="submit">Send</button>
+        <button type="submit" id="send-btn">Send</button>
       </form>
     </main>
+  </div>
+
+  <!-- Poll Creator Modal -->
+  <div id="poll-modal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3>📊 Create a Live Poll</h3>
+        <button id="close-poll-modal" class="modal-close-btn">✕</button>
+      </div>
+      <form id="poll-form" class="form">
+        <label class="field">
+          <span class="field-label">Question</span>
+          <input id="poll-question-input" class="field-input" placeholder="e.g. What game should we play tonight?" required maxlength="200" />
+        </label>
+
+        <div class="poll-options-wrap">
+          <label class="field">
+            <span class="field-label">Option 1</span>
+            <input class="field-input poll-opt-input" placeholder="Option 1" required maxlength="100" />
+          </label>
+          <label class="field">
+            <span class="field-label">Option 2</span>
+            <input class="field-input poll-opt-input" placeholder="Option 2" required maxlength="100" />
+          </label>
+          <label class="field">
+            <span class="field-label">Option 3 (Optional)</span>
+            <input class="field-input poll-opt-input" placeholder="Option 3" maxlength="100" />
+          </label>
+          <label class="field">
+            <span class="field-label">Option 4 (Optional)</span>
+            <input class="field-input poll-opt-input" placeholder="Option 4" maxlength="100" />
+          </label>
+        </div>
+
+        <button type="submit" class="join-btn" style="margin-top:1rem;">
+          <span class="join-btn-inner">
+            <span class="btn-label">Launch Poll in Chat</span>
+          </span>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Room Password Modal -->
+  <div id="room-password-modal" class="modal-overlay hidden">
+    <div class="modal-card small-modal">
+      <div class="modal-head">
+        <h3>🔒 Passcode Required</h3>
+        <button id="close-password-modal" class="modal-close-btn">✕</button>
+      </div>
+      <form id="room-password-form" class="form">
+        <p class="sub">This room is password-protected. Enter the passcode to enter.</p>
+        <label class="field">
+          <input type="password" id="room-password-input" class="field-input" placeholder="Enter room passcode..." required autocomplete="off" />
+        </label>
+        <p id="room-password-error" class="error-text hidden"></p>
+        <button type="submit" class="join-btn" style="margin-top:0.75rem;">
+          <span class="join-btn-inner">
+            <span class="btn-label">Unlock & Enter Room</span>
+          </span>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- User Profile Card Popup Modal -->
+  <div id="user-profile-modal" class="modal-overlay hidden">
+    <div class="modal-card profile-card-modal">
+      <div class="modal-head">
+        <h3>User Profile</h3>
+        <button id="close-user-profile-modal" class="modal-close-btn">✕</button>
+      </div>
+      <div class="profile-modal-body">
+        <div class="profile-modal-avatar-wrap">
+          <img id="profile-modal-avatar" class="user-avatar large" src="" alt="Avatar" />
+        </div>
+        <h2 id="profile-modal-username">Username</h2>
+        <span id="profile-modal-status-text" class="sub" style="font-weight: 600; margin-bottom: 0.5rem;">🟢 Online</span>
+        <p id="profile-modal-bio" class="profile-bio-text">No bio provided yet.</p>
+        
+        <div class="profile-modal-actions">
+          <button id="profile-modal-dm-btn" class="btn btn-primary">💬 Direct Message</button>
+          <button id="profile-modal-friend-btn" class="btn btn-outline">➕ Add Friend</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Lightbox Image Modal -->
+  <div id="lightbox-modal" class="lightbox-modal hidden">
+    <button id="close-lightbox" class="lightbox-close" title="Close">✕</button>
+    <img id="lightbox-img" src="" alt="Enlarged media" />
   </div>
 
   <script src="/socket.io/socket.io.js"></script>

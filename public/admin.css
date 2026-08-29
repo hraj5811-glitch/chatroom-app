@@ -433,6 +433,155 @@ h1 { margin-top: 1.25rem; font-size: 1.6rem; font-weight: 800; }
 .log-join { color: #68d391; }
 .log-leave { color: #fc8181; }
 .log-chat { color: #cbd5e0; }
+.log-poll { color: #f6ad55; }
+.log-pin { color: #b794f4; }
+.log-kick { color: #feb2b2; font-weight: 700; }
+.log-reaction { color: #f6e05e; }
+
+/* Badges for Categories & Privacy */
+.cat-badge {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--primary) 12%, transparent);
+  color: var(--primary);
+  border: 1px solid color-mix(in oklab, var(--primary) 30%, transparent);
+}
+
+.privacy-badge {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.12rem 0.45rem;
+  border-radius: 4px;
+}
+.privacy-badge.public {
+  background: var(--success-bg);
+  color: var(--success);
+  border: 1px solid color-mix(in oklab, var(--success) 35%, transparent);
+}
+.privacy-badge.private {
+  background: color-mix(in oklab, var(--text-muted) 15%, transparent);
+  color: var(--text-muted);
+  border: 1px solid var(--border-color);
+}
+
+/* Inspector Sticky Pinned Banner */
+.inspector-pinned-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 1.5rem;
+  background: color-mix(in oklab, var(--primary) 12%, var(--bg-panel));
+  border-bottom: 1px solid var(--border-color);
+  font-size: 0.82rem;
+}
+.inspector-pinned-banner.hidden { display: none !important; }
+.inspector-pinned-banner .pinned-icon { font-size: 1.1rem; }
+.inspector-pinned-banner .pinned-content { display: flex; flex-direction: column; overflow: hidden; }
+.inspector-pinned-banner strong { font-size: 0.68rem; color: var(--primary); text-transform: uppercase; }
+
+/* Role Badges */
+.role-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  margin-left: 0.35rem;
+  display: inline-block;
+  vertical-align: middle;
+}
+.role-badge.host {
+  background: color-mix(in oklab, #f59e0b 20%, transparent);
+  color: #d97706;
+  border: 1px solid color-mix(in oklab, #f59e0b 40%, transparent);
+}
+.role-badge.mod {
+  background: color-mix(in oklab, #3b82f6 20%, transparent);
+  color: #2563eb;
+  border: 1px solid color-mix(in oklab, #3b82f6 40%, transparent);
+}
+
+/* Quoted Reply inside Messages */
+.reply-quote {
+  border-left: 3px solid var(--primary);
+  background: color-mix(in oklab, var(--primary) 8%, var(--bg-input));
+  padding: 0.3rem 0.55rem;
+  border-radius: 4px;
+  margin-bottom: 0.4rem;
+  font-size: 0.75rem;
+  display: flex;
+  flex-direction: column;
+}
+.reply-quote-user { font-weight: 700; color: var(--primary); margin-bottom: 0.1rem; }
+.reply-quote-text { color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 380px; }
+
+/* Attached Image Thumbnail */
+.chat-img-thumb {
+  max-width: 220px;
+  max-height: 180px;
+  border-radius: 8px;
+  object-fit: cover;
+  margin-top: 0.35rem;
+  cursor: pointer;
+  border: 1px solid var(--border-color);
+  display: block;
+  transition: transform 0.15s ease;
+}
+.chat-img-thumb:hover { transform: scale(1.03); }
+
+/* Live Poll Card inside Inspector */
+.poll-card {
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 0.75rem;
+  margin-top: 0.35rem;
+  min-width: 260px;
+}
+.poll-head { font-weight: 700; font-size: 0.85rem; margin-bottom: 0.5rem; }
+.poll-options { display: flex; flex-direction: column; gap: 0.35rem; }
+.poll-opt-btn {
+  position: relative;
+  overflow: hidden;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 0.4rem 0.6rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.8rem;
+}
+.poll-progress-bg {
+  position: absolute; left: 0; top: 0; bottom: 0;
+  background: color-mix(in oklab, var(--primary) 20%, transparent);
+  z-index: 1;
+}
+.poll-opt-label { position: relative; z-index: 2; font-weight: 600; }
+.poll-opt-stat { position: relative; z-index: 2; font-size: 0.72rem; color: var(--text-muted); font-weight: 700; }
+.poll-total-footer { font-size: 0.68rem; color: var(--text-muted); margin-top: 0.4rem; text-align: right; }
+
+/* Reactions */
+.msg-reactions-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.35rem;
+}
+.reaction-pill {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  padding: 0.1rem 0.45rem;
+  font-size: 0.72rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-weight: 600;
+}
 
 /* Toast */
 .toast {

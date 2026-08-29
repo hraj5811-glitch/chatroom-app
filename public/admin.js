@@ -60,6 +60,14 @@ const inspectorMessages = document.getElementById("inspector-messages");
 const inspectorTyping = document.getElementById("inspector-typing");
 const inspectorFooterInfo = document.getElementById("inspector-footer-info");
 const inspectorScrollBottomBtn = document.getElementById("inspector-scroll-bottom-btn");
+const inspectorPinnedBanner = document.getElementById("inspector-pinned-banner");
+const inspectorPinnedAuthor = document.getElementById("inspector-pinned-author");
+const inspectorPinnedText = document.getElementById("inspector-pinned-text");
+
+// Admin Lightbox Modal
+const adminLightboxModal = document.getElementById("admin-lightbox-modal");
+const adminLightboxImg = document.getElementById("admin-lightbox-img");
+const closeAdminLightboxBtn = document.getElementById("close-admin-lightbox");
 
 // State
 let currentPage = 1;
@@ -229,10 +237,36 @@ async function fetchStats() {
   }
 }
 
+// ---- Lightbox Logic ----
+function openAdminLightbox(url) {
+  adminLightboxImg.src = url;
+  adminLightboxModal.classList.remove("hidden");
+}
+if (closeAdminLightboxBtn) {
+  closeAdminLightboxBtn.addEventListener("click", () => {
+    adminLightboxModal.classList.add("hidden");
+    adminLightboxImg.src = "";
+  });
+}
+adminLightboxModal.addEventListener("click", (e) => {
+  if (e.target === adminLightboxModal) {
+    adminLightboxModal.classList.add("hidden");
+    adminLightboxImg.src = "";
+  }
+});
+
+function escapeHtml(str) {
+  return String(str || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 // ---- Messages Explorer ----
 async function fetchMessages(page = 1) {
   currentPage = page;
-  messagesTableBody.innerHTML = `<tr><td colspan="5" class="table-empty">Loading messages...</td></tr>`;
+  messagesTableBody.innerHTML = `<tr><td colspan="6" class="table-empty">Loading messages...</td></tr>`;
 
   const queryParams = new URLSearchParams({
     page: currentPage,
@@ -250,7 +284,7 @@ async function fetchMessages(page = 1) {
   try {
     const res = await fetch(`/api/admin/messages?${queryParams.toString()}`);
     if (!res.ok) {
-      messagesTableBody.innerHTML = `<tr><td colspan="5" class="table-empty">Failed to load messages.</td></tr>`;
+      messagesTableBody.innerHTML = `<tr><td colspan="6" class="table-empty">Failed to load messages.</td></tr>`;
       return;
     }
 
@@ -264,13 +298,13 @@ async function fetchMessages(page = 1) {
 
     renderMessagesTable(data.messages);
   } catch (err) {
-    messagesTableBody.innerHTML = `<tr><td colspan="5" class="table-empty">Error connecting to server.</td></tr>`;
+    messagesTableBody.innerHTML = `<tr><td colspan="6" class="table-empty">Error connecting to server.</td></tr>`;
   }
 }
 
 function renderMessagesTable(messages) {
   if (!messages || !messages.length) {
-    messagesTableBody.innerHTML = `<tr><td colspan="5" class="table-empty">No messages found matching your filter.</td></tr>`;
+    messagesTableBody.innerHTML = `<tr><td colspan="6" class="table-empty">No messages found matching your filter.</td></tr>`;
     return;
   }
 
@@ -292,10 +326,65 @@ function renderMessagesTable(messages) {
     senderSpan.textContent = msg.username;
     tdSender.appendChild(senderSpan);
 
-    // Message cell (Safely created text node to prevent XSS)
-    const tdText = document.createElement("td");
-    tdText.className = "msg-content";
-    tdText.textContent = msg.text;
+    // Message Content & Media cell
+    const tdContent = document.createElement("td");
+    tdContent.className = "msg-content";
+
+    // Reply Preview
+    if (msg.replyTo && msg.replyTo.username) {
+      const replyDiv = document.createElement("div");
+      replyDiv.className = "reply-quote";
+      replyDiv.innerHTML = `<span class="reply-quote-user">↩ In reply to @${escapeHtml(msg.replyTo.username)}</span><span class="reply-quote-text">${escapeHtml(msg.replyTo.text || "Message")}</span>`;
+      tdContent.appendChild(replyDiv);
+    }
+
+    // Text content
+    if (msg.text) {
+      const textSpan = document.createElement("div");
+      textSpan.textContent = msg.text;
+      tdContent.appendChild(textSpan);
+    }
+
+    // Image thumbnail
+    if (msg.imageUrl) {
+      const img = document.createElement("img");
+      img.src = msg.imageUrl;
+      img.className = "chat-img-thumb";
+      img.alt = "Attachment";
+      img.loading = "lazy";
+      img.addEventListener("click", () => openAdminLightbox(msg.imageUrl));
+      tdContent.appendChild(img);
+    }
+
+    // Poll overview
+    if (msg.poll && msg.poll.question) {
+      const pollBadge = document.createElement("div");
+      pollBadge.style.marginTop = "0.3rem";
+      pollBadge.style.fontSize = "0.75rem";
+      pollBadge.style.color = "var(--primary)";
+      pollBadge.style.fontWeight = "600";
+      pollBadge.textContent = `📊 Live Poll: ${msg.poll.question} (${(msg.poll.options || []).length} options)`;
+      tdContent.appendChild(pollBadge);
+    }
+
+    // Reactions Cell
+    const tdReactions = document.createElement("td");
+    if (msg.reactions && msg.reactions.length) {
+      const wrap = document.createElement("div");
+      wrap.className = "msg-reactions-wrap";
+      msg.reactions.forEach((r) => {
+        if (r.count > 0) {
+          const pill = document.createElement("span");
+          pill.className = "reaction-pill";
+          pill.textContent = `${r.emoji} ${r.count}`;
+          pill.title = r.users ? r.users.join(", ") : "";
+          wrap.appendChild(pill);
+        }
+      });
+      tdReactions.appendChild(wrap);
+    } else {
+      tdReactions.innerHTML = `<span style="color:var(--text-muted); font-size:0.75rem;">-</span>`;
+    }
 
     // Time cell
     const tdTime = document.createElement("td");
@@ -306,7 +395,6 @@ function renderMessagesTable(messages) {
     const tdAction = document.createElement("td");
     tdAction.style.textAlign = "right";
 
-    // Quick inspect button
     const inspectBtn = document.createElement("button");
     inspectBtn.className = "btn btn-sm btn-outline";
     inspectBtn.style.marginRight = "0.4rem";
@@ -319,7 +407,7 @@ function renderMessagesTable(messages) {
     delBtn.addEventListener("click", () => deleteMessage(msg._id, tr));
     
     tdAction.append(inspectBtn, delBtn);
-    tr.append(tdRoom, tdSender, tdText, tdTime, tdAction);
+    tr.append(tdRoom, tdSender, tdContent, tdReactions, tdTime, tdAction);
     messagesTableBody.appendChild(tr);
   });
 }
@@ -370,24 +458,24 @@ msgNextBtn.addEventListener("click", () => {
 
 // ---- Rooms Directory ----
 async function fetchRooms() {
-  roomsTableBody.innerHTML = `<tr><td colspan="6" class="table-empty">Loading rooms...</td></tr>`;
+  roomsTableBody.innerHTML = `<tr><td colspan="8" class="table-empty">Loading rooms...</td></tr>`;
   try {
     const res = await fetch("/api/admin/rooms");
     if (!res.ok) {
-      roomsTableBody.innerHTML = `<tr><td colspan="6" class="table-empty">Failed to load rooms.</td></tr>`;
+      roomsTableBody.innerHTML = `<tr><td colspan="8" class="table-empty">Failed to load rooms.</td></tr>`;
       return;
     }
     const data = await res.json();
     allRoomsData = data.rooms || [];
     renderRoomsTable(allRoomsData);
   } catch (err) {
-    roomsTableBody.innerHTML = `<tr><td colspan="6" class="table-empty">Error fetching rooms.</td></tr>`;
+    roomsTableBody.innerHTML = `<tr><td colspan="8" class="table-empty">Error fetching rooms.</td></tr>`;
   }
 }
 
 function renderRoomsTable(rooms) {
   if (!rooms.length) {
-    roomsTableBody.innerHTML = `<tr><td colspan="6" class="table-empty">No rooms created yet.</td></tr>`;
+    roomsTableBody.innerHTML = `<tr><td colspan="8" class="table-empty">No rooms created yet.</td></tr>`;
     return;
   }
 
@@ -395,29 +483,46 @@ function renderRoomsTable(rooms) {
   rooms.forEach((room) => {
     const tr = document.createElement("tr");
 
-    // Room ID
+    // Room Code
     const tdRoom = document.createElement("td");
     const rSpan = document.createElement("span");
     rSpan.className = "room-badge";
     rSpan.textContent = room.roomId;
     tdRoom.appendChild(rSpan);
 
-    // Creator
-    const tdCreator = document.createElement("td");
-    if (room.createdBy) {
-      tdCreator.textContent = `${room.createdBy.username} (${room.createdBy.email || "No email"})`;
-    } else {
-      tdCreator.innerHTML = `<span class="guest-tag">Guest / Anonymous</span>`;
-    }
+    // Name & Description
+    const tdName = document.createElement("td");
+    tdName.innerHTML = `
+      <div style="font-weight:700; font-size:0.88rem;">${escapeHtml(room.name || "Room #" + room.roomId)}</div>
+      <div style="font-size:0.75rem; color:var(--text-muted); max-width:220px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(room.description || "No description")}</div>
+    `;
 
-    // Created Date
-    const tdDate = document.createElement("td");
-    tdDate.className = "time-tag";
-    tdDate.textContent = new Date(room.createdAt).toLocaleDateString();
+    // Category
+    const tdCat = document.createElement("td");
+    tdCat.innerHTML = `<span class="cat-badge">${escapeHtml(room.category || "General")}</span>`;
+
+    // Privacy
+    const tdPrivacy = document.createElement("td");
+    const isPub = room.isPublic !== false;
+    let privacyHtml = isPub
+      ? `<span class="privacy-badge public">🌐 Public</span>`
+      : `<span class="privacy-badge private">🔒 Private</span>`;
+    if (room.isPasswordProtected) {
+      privacyHtml += ` <span class="privacy-badge" style="background:color-mix(in oklab, var(--danger) 15%, transparent); color:var(--danger); border-color:color-mix(in oklab, var(--danger) 30%, transparent); margin-left:0.25rem;">🔑 Passcode</span>`;
+    }
+    tdPrivacy.innerHTML = privacyHtml;
+
+    // Creator / Host
+    const tdCreator = document.createElement("td");
+    const hostName = room.creatorUsername || (room.createdBy ? room.createdBy.username : "Guest");
+    tdCreator.innerHTML = `
+      <span class="user-tag">${escapeHtml(hostName)}</span>
+      <span class="role-badge host">👑 Host</span>
+    `;
 
     // Messages Count
     const tdMsgs = document.createElement("td");
-    tdMsgs.textContent = `${room.messageCount} messages`;
+    tdMsgs.textContent = `${room.messageCount} msgs`;
 
     // Online Now
     const tdOnline = document.createElement("td");
@@ -429,7 +534,6 @@ function renderRoomsTable(rooms) {
     const tdActions = document.createElement("td");
     tdActions.style.textAlign = "right";
 
-    // 👻 Ghost Spectate / Inspect button
     const spectateBtn = document.createElement("button");
     spectateBtn.className = room.onlineCount > 0 ? "btn btn-sm btn-primary" : "btn btn-sm btn-outline";
     spectateBtn.innerHTML = room.onlineCount > 0 ? "👻 Spectate Live" : "📖 Inspect Chat";
@@ -443,7 +547,7 @@ function renderRoomsTable(rooms) {
     delBtn.addEventListener("click", () => deleteRoom(room.roomId, tr));
 
     tdActions.append(spectateBtn, delBtn);
-    tr.append(tdRoom, tdCreator, tdDate, tdMsgs, tdOnline, tdActions);
+    tr.append(tdRoom, tdName, tdCat, tdPrivacy, tdCreator, tdMsgs, tdOnline, tdActions);
     roomsTableBody.appendChild(tr);
   });
 }
@@ -469,37 +573,48 @@ async function deleteRoom(roomId, rowElement) {
 }
 
 searchRoomTable.addEventListener("input", () => {
-  const q = searchRoomTable.value.trim().toUpperCase();
+  const q = searchRoomTable.value.trim().toLowerCase();
   const filtered = allRoomsData.filter(
     (r) =>
-      r.roomId.includes(q) ||
-      (r.createdBy && r.createdBy.username && r.createdBy.username.toUpperCase().includes(q))
+      r.roomId.toLowerCase().includes(q) ||
+      (r.name && r.name.toLowerCase().includes(q)) ||
+      (r.category && r.category.toLowerCase().includes(q)) ||
+      (r.creatorUsername && r.creatorUsername.toLowerCase().includes(q))
   );
   renderRoomsTable(filtered);
 });
 
 // ---- Users Explorer ----
 async function fetchUsers() {
-  usersTableBody.innerHTML = `<tr><td colspan="6" class="table-empty">Loading users...</td></tr>`;
+  usersTableBody.innerHTML = `<tr><td colspan="7" class="table-empty">Loading users...</td></tr>`;
   try {
     const res = await fetch("/api/admin/users");
     if (!res.ok) {
-      usersTableBody.innerHTML = `<tr><td colspan="6" class="table-empty">Failed to load users.</td></tr>`;
+      usersTableBody.innerHTML = `<tr><td colspan="7" class="table-empty">Failed to load users.</td></tr>`;
       return;
     }
     const data = await res.json();
     allUsersData = data.users || [];
     renderUsersTable(allUsersData);
   } catch (err) {
-    usersTableBody.innerHTML = `<tr><td colspan="6" class="table-empty">Error fetching users.</td></tr>`;
+    usersTableBody.innerHTML = `<tr><td colspan="7" class="table-empty">Error fetching users.</td></tr>`;
   }
 }
 
 function renderUsersTable(users) {
   if (!users.length) {
-    usersTableBody.innerHTML = `<tr><td colspan="6" class="table-empty">No registered users found.</td></tr>`;
+    usersTableBody.innerHTML = `<tr><td colspan="7" class="table-empty">No registered users found.</td></tr>`;
     return;
   }
+
+  const statusIcons = {
+    Online: "🟢",
+    Studying: "📚",
+    Gaming: "🎮",
+    Chilling: "☕",
+    Listening: "🎧",
+    DND: "⛔",
+  };
 
   usersTableBody.innerHTML = "";
   users.forEach((user) => {
@@ -517,6 +632,12 @@ function renderUsersTable(users) {
     // Email
     const tdEmail = document.createElement("td");
     tdEmail.textContent = user.email || "-";
+
+    // Status
+    const tdStatus = document.createElement("td");
+    const stat = user.status || "Online";
+    const icon = statusIcons[stat] || "🟢";
+    tdStatus.innerHTML = `<span style="font-size:0.75rem;">${icon} ${stat}</span>`;
 
     // Joined Rooms count
     const tdRooms = document.createElement("td");
@@ -547,7 +668,7 @@ function renderUsersTable(users) {
     delBtn.addEventListener("click", () => deleteUser(user._id, user.username, tr));
 
     tdActions.append(viewChatsBtn, delBtn);
-    tr.append(tdUser, tdName, tdEmail, tdRooms, tdDate, tdActions);
+    tr.append(tdUser, tdName, tdEmail, tdStatus, tdRooms, tdDate, tdActions);
     usersTableBody.appendChild(tr);
   });
 }
@@ -586,6 +707,7 @@ async function openRoomInspector(roomId) {
   inspectorSearchInput.value = "";
   inspectorTyping.textContent = "";
   inspectorMessages.innerHTML = `<p class="table-empty">Connecting to room #${roomId}...</p>`;
+  inspectorPinnedBanner.classList.add("hidden");
   inspectorModal.classList.remove("hidden");
   inspectorRoomTitle.textContent = `Room #${roomId}`;
 
@@ -602,11 +724,19 @@ async function openRoomInspector(roomId) {
     inspectorMessagesData = data.messages || [];
 
     // Header info
-    const creatorText = data.room?.createdBy
-      ? `Created by ${data.room.createdBy.username} (${data.room.createdBy.email || "No email"})`
-      : "Created by Guest / Anonymous";
+    const hostName = data.room?.creatorUsername || data.room?.createdBy?.username || "Guest";
+    const cat = data.room?.category || "General";
     const dateText = data.room ? new Date(data.room.createdAt).toLocaleDateString() : "-";
-    inspectorRoomMeta.textContent = `${creatorText} • Created on ${dateText} • ${inspectorMessagesData.length} saved messages`;
+    inspectorRoomMeta.textContent = `Host: ${hostName} • Category: ${cat} • Created: ${dateText} • ${inspectorMessagesData.length} saved messages`;
+
+    // Pinned Announcement check
+    if (data.room?.pinnedMessage && data.room.pinnedMessage.text) {
+      inspectorPinnedAuthor.textContent = `📌 Pinned Announcement by ${data.room.pinnedMessage.username || "Host"}`;
+      inspectorPinnedText.textContent = data.room.pinnedMessage.text;
+      inspectorPinnedBanner.classList.remove("hidden");
+    } else {
+      inspectorPinnedBanner.classList.add("hidden");
+    }
 
     // Status Badge & Footer
     if (isLive) {
@@ -636,10 +766,27 @@ function renderOccupantsList(occupants) {
     return;
   }
 
+  const statusIcons = {
+    Online: "🟢",
+    Studying: "📚",
+    Gaming: "🎮",
+    Chilling: "☕",
+    Listening: "🎧",
+    DND: "⛔",
+  };
+
   occupants.forEach((u) => {
+    const username = typeof u === "object" ? u.username : u;
+    const status = (typeof u === "object" ? u.status : "Online") || "Online";
+    const isHost = typeof u === "object" && u.isHost;
+    const isMod = typeof u === "object" && u.isMod;
+    const icon = statusIcons[status] || "🟢";
+
+    const badge = isHost ? `<span class="role-badge host">👑 Host</span>` : isMod ? `<span class="role-badge mod">🛡️ Mod</span>` : "";
+
     const span = document.createElement("span");
     span.className = "occupant-tag";
-    span.innerHTML = `🟢 <span>${u}</span>`;
+    span.innerHTML = `${icon} <span>${escapeHtml(username)}</span>${badge}`;
     inspectorOccupantsList.appendChild(span);
   });
 }
@@ -659,8 +806,10 @@ function renderInspectorMessages(messages, highlightQuery = "") {
 function appendInspectorMessage(m, highlightQuery = "") {
   const div = document.createElement("div");
   div.className = "ghost-msg";
+  div.dataset.msgId = String(m._id || m.messageId || "");
 
-  if (highlightQuery && m.text.toLowerCase().includes(highlightQuery.toLowerCase())) {
+  const fullText = (m.text || "") + " " + (m.poll ? m.poll.question : "");
+  if (highlightQuery && fullText.toLowerCase().includes(highlightQuery.toLowerCase())) {
     div.classList.add("highlighted");
   }
 
@@ -679,13 +828,73 @@ function appendInspectorMessage(m, highlightQuery = "") {
 
   meta.appendChild(userStrong);
   meta.appendChild(timeSpan);
-
-  const textDiv = document.createElement("div");
-  textDiv.className = "text";
-  textDiv.textContent = m.text;
-
   div.appendChild(meta);
-  div.appendChild(textDiv);
+
+  // Quoted reply
+  if (m.replyTo && m.replyTo.username) {
+    const replyDiv = document.createElement("div");
+    replyDiv.className = "reply-quote";
+    replyDiv.innerHTML = `<span class="reply-quote-user">↩ Replying to @${escapeHtml(m.replyTo.username)}</span><span class="reply-quote-text">${escapeHtml(m.replyTo.text || "Message")}</span>`;
+    div.appendChild(replyDiv);
+  }
+
+  // Attached image
+  if (m.imageUrl) {
+    const img = document.createElement("img");
+    img.src = m.imageUrl;
+    img.className = "chat-img-thumb";
+    img.alt = "Attachment";
+    img.loading = "lazy";
+    img.addEventListener("click", () => openAdminLightbox(m.imageUrl));
+    div.appendChild(img);
+  }
+
+  // Poll card
+  if (m.poll && m.poll.options) {
+    const pollWrap = document.createElement("div");
+    pollWrap.className = "poll-card";
+    const totalVotes = m.poll.options.reduce((sum, opt) => sum + (opt.votes ? opt.votes.length : 0), 0);
+
+    let optsHtml = m.poll.options.map((opt) => {
+      const count = opt.votes ? opt.votes.length : 0;
+      const pct = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0;
+      return `
+        <div class="poll-opt-btn">
+          <div class="poll-progress-bg" style="width:${pct}%;"></div>
+          <span class="poll-opt-label">${escapeHtml(opt.text)}</span>
+          <span class="poll-opt-stat">${count} (${pct}%)</span>
+        </div>
+      `;
+    }).join("");
+
+    pollWrap.innerHTML = `
+      <div class="poll-head">📊 ${escapeHtml(m.poll.question)}</div>
+      <div class="poll-options">${optsHtml}</div>
+      <div class="poll-total-footer">${totalVotes} total votes</div>
+    `;
+    div.appendChild(pollWrap);
+  } else if (m.text) {
+    const textDiv = document.createElement("div");
+    textDiv.className = "text";
+    textDiv.textContent = m.text;
+    div.appendChild(textDiv);
+  }
+
+  // Reactions
+  if (m.reactions && m.reactions.length) {
+    const rWrap = document.createElement("div");
+    rWrap.className = "msg-reactions-wrap";
+    m.reactions.forEach((r) => {
+      if (r.count > 0) {
+        const pill = document.createElement("span");
+        pill.className = "reaction-pill";
+        pill.textContent = `${r.emoji} ${r.count}`;
+        rWrap.appendChild(pill);
+      }
+    });
+    div.appendChild(rWrap);
+  }
+
   inspectorMessages.appendChild(div);
 }
 
@@ -714,7 +923,8 @@ inspectorSearchInput.addEventListener("input", () => {
     const filtered = inspectorMessagesData.filter(
       (m) =>
         (m.text && m.text.toLowerCase().includes(query)) ||
-        (m.username && m.username.toLowerCase().includes(query))
+        (m.username && m.username.toLowerCase().includes(query)) ||
+        (m.poll && m.poll.question && m.poll.question.toLowerCase().includes(query))
     );
     renderInspectorMessages(filtered, query);
   }
@@ -732,11 +942,10 @@ socket.on("spectate_history", ({ room, messages, occupants }) => {
   }
 });
 
-// Incoming message received (Socket.IO broadcast for spectated room)
+// Incoming message received
 socket.on("receive_message", (msg) => {
   if (activeInspectorRoom) {
     inspectorMessagesData.push(msg);
-    // Remove "no messages" placeholder if present
     const emptyP = inspectorMessages.querySelector(".table-empty");
     if (emptyP) emptyP.remove();
 
@@ -753,6 +962,49 @@ socket.on("display_typing", (username) => {
     inspectorTypingTimeout = setTimeout(() => {
       inspectorTyping.textContent = "";
     }, 1600);
+  }
+});
+
+// Pinned message updated
+socket.on("pinned_message_updated", (pinned) => {
+  if (activeInspectorRoom) {
+    if (pinned && pinned.text) {
+      inspectorPinnedAuthor.textContent = `📌 Pinned Announcement by ${pinned.username || "Host"}`;
+      inspectorPinnedText.textContent = pinned.text;
+      inspectorPinnedBanner.classList.remove("hidden");
+    } else {
+      inspectorPinnedBanner.classList.add("hidden");
+    }
+  }
+});
+
+// Poll updated in inspector
+socket.on("poll_updated", ({ messageId, poll }) => {
+  if (activeInspectorRoom) {
+    const targetMsg = inspectorMessagesData.find((m) => String(m._id || m.messageId) === String(messageId));
+    if (targetMsg) {
+      targetMsg.poll = poll;
+      renderInspectorMessages(inspectorMessagesData);
+    }
+  }
+});
+
+// Reactions updated in inspector
+socket.on("message_reaction_updated", ({ messageId, reactions }) => {
+  if (activeInspectorRoom) {
+    const targetMsg = inspectorMessagesData.find((m) => String(m._id || m.messageId) === String(messageId));
+    if (targetMsg) {
+      targetMsg.reactions = reactions;
+      renderInspectorMessages(inspectorMessagesData);
+    }
+  }
+});
+
+// Message deleted in inspector
+socket.on("message_deleted", ({ messageId }) => {
+  if (activeInspectorRoom) {
+    inspectorMessagesData = inspectorMessagesData.filter((m) => String(m._id || m.messageId) !== String(messageId));
+    renderInspectorMessages(inspectorMessagesData);
   }
 });
 
@@ -781,53 +1033,27 @@ socket.on("admin_live_event", (event) => {
   if (event.type === "user_joined") {
     entry.classList.add("log-join");
     textSpan.textContent = `🟢 ${event.user} joined room #${event.room} (${event.isGuest ? "Guest" : "Registered"})`;
-    // Update live inspector occupants if open on this room
-    if (activeInspectorRoom === event.room) {
-      const existingTags = Array.from(inspectorOccupantsList.querySelectorAll(".occupant-tag"));
-      if (!existingTags.some((t) => t.textContent.includes(event.user))) {
-        const noOccupants = inspectorOccupantsList.querySelector('span[style*="opacity"]');
-        if (noOccupants) noOccupants.remove();
-        const span = document.createElement("span");
-        span.className = "occupant-tag";
-        span.innerHTML = `🟢 <span>${event.user}</span>`;
-        inspectorOccupantsList.appendChild(span);
-      }
-    }
   } else if (event.type === "user_left" || event.type === "user_disconnect") {
     entry.classList.add("log-leave");
     textSpan.textContent = `🔴 ${event.user} left room #${event.room}`;
-    // Remove occupant from live inspector if open on this room
-    if (activeInspectorRoom === event.room) {
-      const tags = Array.from(inspectorOccupantsList.querySelectorAll(".occupant-tag"));
-      tags.forEach((t) => {
-        if (t.textContent.includes(event.user)) t.remove();
-      });
-      if (!inspectorOccupantsList.children.length) {
-        inspectorOccupantsList.innerHTML = `<span class="occupant-tag" style="opacity:0.7">No active users in room</span>`;
-      }
-    }
   } else if (event.type === "user_message" || event.type === "guest_message") {
     entry.classList.add("log-chat");
     textSpan.textContent = `💬 [#${event.room}] ${event.user}: ${event.text}`;
-    // Fallback: If active inspector is on this room and message wasn't received via room socket
-    if (activeInspectorRoom === event.room) {
-      const exists = inspectorMessagesData.some(
-        (m) => (event.messageId && m.messageId === event.messageId) || (m.user === event.user && m.text === event.text && Math.abs(new Date(m.time) - new Date(event.time)) < 2000)
-      );
-      if (!exists) {
-        const msgObj = {
-          messageId: event.messageId,
-          user: event.user,
-          text: event.text,
-          time: event.time,
-        };
-        inspectorMessagesData.push(msgObj);
-        const emptyP = inspectorMessages.querySelector(".table-empty");
-        if (emptyP) emptyP.remove();
-        appendInspectorMessage(msgObj);
-        scrollToInspectorBottom();
-      }
-    }
+  } else if (event.type === "poll_created") {
+    entry.classList.add("log-poll");
+    textSpan.textContent = `📊 [#${event.room}] ${event.user} launched a Live Poll: "${event.question}"`;
+  } else if (event.type === "message_pinned") {
+    entry.classList.add("log-pin");
+    textSpan.textContent = `📌 [#${event.room}] ${event.user} pinned announcement: "${event.text}"`;
+  } else if (event.type === "message_unpinned") {
+    entry.classList.add("log-pin");
+    textSpan.textContent = `📌 [#${event.room}] ${event.user} unpinned announcement`;
+  } else if (event.type === "user_kicked") {
+    entry.classList.add("log-kick");
+    textSpan.textContent = `🚫 [#${event.room}] ${event.user} was kicked by ${event.kickedBy}`;
+  } else if (event.type === "reaction_updated") {
+    entry.classList.add("log-reaction");
+    textSpan.textContent = `${event.emoji} [#${event.room}] ${event.user} reacted with ${event.emoji}`;
   } else if (event.type === "message_deleted") {
     entry.classList.add("log-leave");
     textSpan.textContent = `🗑️ ${event.text}`;

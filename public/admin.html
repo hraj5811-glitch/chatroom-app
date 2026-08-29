@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Kothaa — Admin Command Center</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -141,7 +142,7 @@
         <div class="pane-header">
           <div>
             <h3>All Saved Messages</h3>
-            <p class="sub-pane">Inspect, search, filter, and moderate chats sent in any room.</p>
+            <p class="sub-pane">Inspect, search, filter, and moderate chats, images, polls, and replies sent in any room.</p>
           </div>
           <div class="pane-controls">
             <input type="text" id="search-msg-input" class="search-input" placeholder="🔍 Search message text..." />
@@ -158,13 +159,14 @@
                 <tr>
                   <th>Room</th>
                   <th>Sender</th>
-                  <th>Message Content</th>
+                  <th>Message Content & Media</th>
+                  <th>Reactions</th>
                   <th>Timestamp</th>
                   <th style="text-align: right">Actions</th>
                 </tr>
               </thead>
               <tbody id="messages-table-body">
-                <tr><td colspan="5" class="table-empty">Loading messages...</td></tr>
+                <tr><td colspan="6" class="table-empty">Loading messages...</td></tr>
               </tbody>
             </table>
           </div>
@@ -186,7 +188,7 @@
         <div class="pane-header">
           <div>
             <h3>Rooms Directory</h3>
-            <p class="sub-pane">All created chat rooms, creator ownership, message counts, and active occupants.</p>
+            <p class="sub-pane">All created chat rooms, metadata, categories, privacy status, message counts, and active occupants.</p>
           </div>
           <div class="pane-controls">
             <input type="text" id="search-room-table" class="search-input" placeholder="🔍 Filter rooms list..." />
@@ -199,15 +201,17 @@
               <thead>
                 <tr>
                   <th>Room Code</th>
-                  <th>Created By</th>
-                  <th>Created Date</th>
+                  <th>Name & Description</th>
+                  <th>Category</th>
+                  <th>Privacy</th>
+                  <th>Creator / Host</th>
                   <th>Messages Count</th>
                   <th>Online Now</th>
                   <th style="text-align: right">Actions</th>
                 </tr>
               </thead>
               <tbody id="rooms-table-body">
-                <tr><td colspan="6" class="table-empty">Loading rooms...</td></tr>
+                <tr><td colspan="8" class="table-empty">Loading rooms...</td></tr>
               </tbody>
             </table>
           </div>
@@ -234,13 +238,14 @@
                   <th>User / Username</th>
                   <th>Google Name</th>
                   <th>Email</th>
+                  <th>Status</th>
                   <th>Joined Rooms</th>
                   <th>Joined Date</th>
                   <th style="text-align: right">Actions</th>
                 </tr>
               </thead>
               <tbody id="users-table-body">
-                <tr><td colspan="6" class="table-empty">Loading users...</td></tr>
+                <tr><td colspan="7" class="table-empty">Loading users...</td></tr>
               </tbody>
             </table>
           </div>
@@ -252,7 +257,7 @@
         <div class="pane-header">
           <div>
             <h3>Live Activity Feed</h3>
-            <p class="sub-pane">Real-time socket events stream as users join, chat, and leave.</p>
+            <p class="sub-pane">Real-time socket events stream as users join, chat, share photos, create polls, pin announcements, and react.</p>
           </div>
           <div class="pane-controls">
             <button id="clear-live-feed-btn" class="btn btn-sm btn-outline">Clear Feed</button>
@@ -298,6 +303,15 @@
         </div>
       </div>
 
+      <!-- Sticky Pinned Announcement in Inspector -->
+      <div id="inspector-pinned-banner" class="inspector-pinned-banner hidden">
+        <span class="pinned-icon">📌</span>
+        <div class="pinned-content">
+          <strong id="inspector-pinned-author">Pinned Announcement</strong>
+          <span id="inspector-pinned-text"></span>
+        </div>
+      </div>
+
       <!-- Occupants strip -->
       <div id="inspector-occupants-bar" class="occupants-bar">
         <span class="occupants-label">Live Occupants:</span>
@@ -319,6 +333,14 @@
         <span id="inspector-footer-info" class="sub-pane">🔒 Invisible Mode: Zero notifications sent to users in this room.</span>
         <button id="inspector-scroll-bottom-btn" class="btn btn-sm btn-outline">⬇ Jump to latest</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Admin Lightbox Modal -->
+  <div id="admin-lightbox-modal" class="modal-overlay hidden" style="z-index: 1200;">
+    <div style="position:relative; max-width:90vw; max-height:90vh; display:flex; align-items:center; justify-content:center;">
+      <button id="close-admin-lightbox" class="icon-btn" style="position:absolute; top:-2.5rem; right:0; background:rgba(0,0,0,0.6); color:#fff; border:none; width:36px; height:36px; border-radius:50%; cursor:pointer;">✕</button>
+      <img id="admin-lightbox-img" src="" alt="Enlarged view" style="max-width:90vw; max-height:85vh; border-radius:12px; box-shadow:0 10px 40px rgba(0,0,0,0.5);" />
     </div>
   </div>
 

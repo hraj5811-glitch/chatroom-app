@@ -2,3 +2,9 @@ node_modules/
 .env
 npm-debug.log
 .DS_Store
+
+# Ignore uploaded media except .gitkeep
+public/uploads/*
+!public/uploads/.gitkeep
+public/avatars/*
+!public/avatars/.gitkeep
