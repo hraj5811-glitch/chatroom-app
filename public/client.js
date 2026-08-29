@@ -1748,8 +1748,15 @@ function renderMessage(msg) {
     imgHtml = `<img src="${escapeHtml(msg.imageUrl)}" alt="Attached media" class="chat-img" />`;
   }
 
+  const hasPoll = Boolean(
+    msg.poll &&
+    msg.poll.question &&
+    Array.isArray(msg.poll.options) &&
+    msg.poll.options.length > 0
+  );
+
   let pollHtml = "";
-  if (msg.poll) {
+  if (hasPoll) {
     pollHtml = `<div class="poll-card" data-msg-id="${msgId}"></div>`;
   }
 
@@ -1767,7 +1774,7 @@ function renderMessage(msg) {
         </div>
         <span class="time">${time}</span>
       </div>
-      ${msg.text && !msg.poll ? `<div class="message-text">${escapeHtml(msg.text)}</div>` : ""}
+      ${msg.text ? `<div class="message-text">${escapeHtml(msg.text)}</div>` : ""}
       ${imgHtml}
       ${pollHtml}
       <div class="msg-reactions-wrap"></div>
@@ -1780,8 +1787,27 @@ function renderMessage(msg) {
     </div>
   `;
 
+  // Toggle quick action bar on mobile tap
+  wrap.querySelector(".message-bubble").addEventListener("click", (e) => {
+    if (
+      e.target.closest("button") ||
+      e.target.closest(".message-header-user") ||
+      e.target.closest("img") ||
+      e.target.closest(".reply-quote") ||
+      e.target.closest(".poll-option")
+    ) {
+      return;
+    }
+    const isShown = wrap.classList.contains("show-actions");
+    document.querySelectorAll(".message-wrapper.show-actions").forEach((w) => w.classList.remove("show-actions"));
+    if (!isShown) {
+      wrap.classList.add("show-actions");
+    }
+  });
+
   // Profile modal on avatar/username click
-  wrap.querySelector(".message-header-user").addEventListener("click", () => {
+  wrap.querySelector(".message-header-user").addEventListener("click", (e) => {
+    e.stopPropagation();
     if (user !== myUsername) {
       openUserProfileModal(user);
     }
@@ -1793,9 +1819,11 @@ function renderMessage(msg) {
   }
 
   // Poll rendering
-  if (msg.poll) {
+  if (hasPoll) {
     const pollCard = wrap.querySelector(".poll-card");
-    renderPollContent(pollCard, msgId, msg.poll);
+    if (pollCard) {
+      renderPollContent(pollCard, msgId, msg.poll);
+    }
   }
 
   // Quoted reply jump

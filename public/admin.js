@@ -850,7 +850,7 @@ function appendInspectorMessage(m, highlightQuery = "") {
   }
 
   // Poll card
-  if (m.poll && m.poll.options) {
+  if (m.poll && m.poll.question && Array.isArray(m.poll.options) && m.poll.options.length > 0) {
     const pollWrap = document.createElement("div");
     pollWrap.className = "poll-card";
     const totalVotes = m.poll.options.reduce((sum, opt) => sum + (opt.votes ? opt.votes.length : 0), 0);

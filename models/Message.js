@@ -10,14 +10,8 @@ const messageSchema = new mongoose.Schema({
     text: { type: String, default: "" },
   },
   poll: {
-    question: { type: String, default: "" },
-    options: [
-      {
-        text: { type: String, required: true },
-        votes: [{ type: String }], // list of usernames who voted
-      },
-    ],
-    closed: { type: Boolean, default: false },
+    type: Object,
+    default: null,
   },
   reactions: [
     {
@@ -37,4 +31,3 @@ messageSchema.index({ room: 1, createdAt: -1 });
 messageSchema.index({ username: 1, createdAt: -1 });
 
 module.exports = mongoose.model("Message", messageSchema);
-
