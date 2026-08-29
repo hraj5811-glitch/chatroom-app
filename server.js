@@ -450,7 +450,11 @@ app.put("/api/profile/username", requireUserOrGuest, async (req, res) => {
       if (taken && String(taken._id) !== String(req.user._id)) {
         return res.status(409).json({ error: "That username is already taken by another user." });
       }
-      const updatedUser = await User.findByIdAndUpdate(req.user._id, { $set: { username: newUsername } }, { new: true });
+      const updatedUser = await User.findByIdAndUpdate(
+        req.user._id,
+        { $set: { username: newUsername, displayName: newUsername } },
+        { new: true }
+      );
       req.user = updatedUser;
       return res.json({ username: updatedUser.username });
     }
@@ -470,10 +474,23 @@ app.put("/api/profile/username", requireUserOrGuest, async (req, res) => {
 });
 
 app.post("/api/profile/avatar", requireUserOrGuest, uploadAvatar.single("avatar"), async (req, res) => {
-  if (!req.file) {
+  let avatarUrl = "";
+  if (req.file) {
+    try {
+      const fileBuffer = fs.readFileSync(req.file.path);
+      const mime = req.file.mimetype || "image/jpeg";
+      avatarUrl = `data:${mime};base64,${fileBuffer.toString("base64")}`;
+    } catch (e) {
+      avatarUrl = `/avatars/${req.file.filename}`;
+    }
+  } else if (req.body && req.body.avatarDataUrl) {
+    avatarUrl = String(req.body.avatarDataUrl).trim();
+  }
+
+  if (!avatarUrl) {
     return res.status(400).json({ error: "No avatar image provided or invalid format" });
   }
-  const avatarUrl = `/avatars/${req.file.filename}`;
+
   let updatedUsername = "";
 
   if (req.isAuthenticated && req.isAuthenticated()) {
@@ -621,16 +638,42 @@ app.put("/api/profile/details", requireUserOrGuest, async (req, res) => {
 // Lookup any user's profile card (respects privacy toggle & calculates shared interests)
 app.get("/api/users/:username", async (req, res) => {
   try {
-    const target = await User.findOne({ username: req.params.username })
+    const rawUsername = String(req.params.username || "").trim();
+    let target = await User.findOne({
+      username: { $regex: new RegExp(`^${rawUsername}$`, "i") },
+    })
       .select("username displayName avatarUrl bio college interests isPublicProfile status createdAt")
       .lean();
+
     if (!target) {
+      // Check if target is currently an active online guest
+      const activeGuest = Object.values(activeUsers).find(
+        (u) => u.username && u.username.toLowerCase() === rawUsername.toLowerCase()
+      );
+      if (activeGuest) {
+        return res.json({
+          username: activeGuest.username,
+          displayName: activeGuest.username,
+          avatarUrl: null,
+          status: activeGuest.status || "Online",
+          isOnline: true,
+          isPublicProfile: true,
+          bio: "Guest User",
+          college: "",
+          interests: [],
+          sharedInterests: [],
+          createdAt: new Date(),
+        });
+      }
       return res.status(404).json({ error: "User not found" });
     }
-    const isOnline = Object.values(activeUsers).some((u) => u.username === target.username);
 
-    const currentUsername = req.isAuthenticated && req.isAuthenticated() ? req.user.username : (req.session.guestUsername || "");
-    const isSelf = currentUsername === target.username;
+    const isOnline = Object.values(activeUsers).some(
+      (u) => u.username && u.username.toLowerCase() === target.username.toLowerCase()
+    );
+
+    const currentUsername = req.isAuthenticated && req.isAuthenticated() ? req.user.username : (req.session?.guestUsername || "");
+    const isSelf = currentUsername.toLowerCase() === target.username.toLowerCase();
     const isPublic = target.isPublicProfile !== false || isSelf;
 
     let sharedInterests = [];
@@ -641,9 +684,9 @@ app.get("/api/users/:username", async (req, res) => {
     if (!isPublic) {
       return res.json({
         username: target.username,
-        displayName: target.displayName,
-        avatarUrl: target.avatarUrl,
-        status: target.status,
+        displayName: target.displayName || target.username,
+        avatarUrl: target.avatarUrl || null,
+        status: target.status || "Online",
         isOnline,
         isPublicProfile: false,
         bio: "",
@@ -656,18 +699,19 @@ app.get("/api/users/:username", async (req, res) => {
 
     res.json({
       username: target.username,
-      displayName: target.displayName,
-      avatarUrl: target.avatarUrl,
+      displayName: target.displayName || target.username,
+      avatarUrl: target.avatarUrl || null,
       bio: target.bio || "",
       college: target.college || "",
       interests: target.interests || [],
-      status: target.status,
+      status: target.status || "Online",
       isOnline,
       isPublicProfile: true,
       sharedInterests,
       createdAt: target.createdAt,
     });
   } catch (err) {
+    console.error("User lookup failed:", err);
     res.status(500).json({ error: "Could not fetch user profile" });
   }
 });

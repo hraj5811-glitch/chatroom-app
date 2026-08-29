@@ -13,6 +13,7 @@ passport.use(
     },
     async (accessToken, refreshToken, profile, done) => {
       try {
+        const googlePhoto = profile.photos?.[0]?.value || null;
         let user = await User.findOne({ googleId: profile.id });
 
         if (!user) {
@@ -22,7 +23,11 @@ passport.use(
             email: profile.emails?.[0]?.value || "",
             displayName: profile.displayName || "",
             username,
+            avatarUrl: googlePhoto,
           });
+        } else if (!user.avatarUrl && googlePhoto) {
+          user.avatarUrl = googlePhoto;
+          await user.save();
         }
 
         return done(null, user);

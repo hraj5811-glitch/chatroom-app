@@ -237,10 +237,10 @@ function escapeHtml(str) {
 
 function renderAvatarImg(url, name, sizeClass = "small") {
   const safeName = escapeHtml(name || "User");
-  if (url) {
-    return `<img class="user-avatar ${sizeClass}" src="${escapeHtml(url)}" alt="${safeName}" data-avatar-user="${safeName}" />`;
-  }
   const initial = (name || "U")[0].toUpperCase();
+  if (url && typeof url === "string" && url.trim() !== "" && url !== "null" && url !== "undefined") {
+    return `<img class="user-avatar ${sizeClass}" src="${escapeHtml(url)}" alt="${safeName}" referrerpolicy="no-referrer" data-avatar-user="${safeName}" onerror="this.onerror=null; const s=document.createElement('span'); s.className='user-avatar ${sizeClass} avatar-placeholder'; s.setAttribute('data-avatar-user', '${safeName}'); s.textContent='${initial}'; this.replaceWith(s);" />`;
+  }
   return `<span class="user-avatar ${sizeClass} avatar-placeholder" data-avatar-user="${safeName}">${initial}</span>`;
 }
 
@@ -1461,13 +1461,26 @@ if (addFriendBtn && addFriendInput) {
 async function openUserProfileModal(username) {
   activeInspectedUser = username;
   try {
-    const res = await fetch(`/api/users/${username}`);
-    if (!res.ok) return;
+    const res = await fetch(`/api/users/${encodeURIComponent(username)}`);
+    if (!res.ok) {
+      profileModalUsername.textContent = username;
+      profileModalStatusText.textContent = "⚪ Offline";
+      profileModalBio.textContent = "User information not available.";
+      const avatarWrap = document.querySelector(".profile-modal-avatar-wrap");
+      if (avatarWrap) avatarWrap.innerHTML = renderAvatarImg(null, username, "large");
+      userProfileModal.classList.remove("hidden");
+      return;
+    }
     const data = await res.json();
 
-    profileModalUsername.textContent = data.displayName || data.username;
+    profileModalUsername.textContent = data.username || username;
     profileModalStatusText.textContent = data.isOnline ? "🟢 Online" : "⚪ Offline";
     profileModalBio.textContent = data.bio || (data.isPublicProfile ? "No bio written yet." : "This profile is private.");
+
+    const avatarWrap = document.querySelector(".profile-modal-avatar-wrap");
+    if (avatarWrap) {
+      avatarWrap.innerHTML = renderAvatarImg(data.avatarUrl, data.username || username, "large");
+    }
 
     const privacyTag = document.getElementById("profile-modal-privacy-tag");
     if (privacyTag) {
@@ -1508,15 +1521,6 @@ async function openUserProfileModal(username) {
       } else {
         interestsWrap.classList.add("hidden");
       }
-    }
-
-    if (data.avatarUrl) {
-      profileModalAvatar.src = data.avatarUrl;
-      profileModalAvatar.setAttribute("data-avatar-user", data.username);
-      profileModalAvatar.style.display = "inline-block";
-    } else {
-      profileModalAvatar.src = "";
-      profileModalAvatar.style.display = "none";
     }
 
     // Hide DM and Add Friend buttons if inspecting self
@@ -1696,6 +1700,45 @@ async function loadProfile() {
   }
 }
 
+// Helper to compress avatar image to a lightweight 256x256 Base64 Data URL
+function compressAvatar(file, maxSize = 256, quality = 0.85) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > maxSize) {
+            height = Math.round((height * maxSize) / width);
+            width = maxSize;
+          }
+        } else {
+          if (height > maxSize) {
+            width = Math.round((width * maxSize) / height);
+            height = maxSize;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const dataUrl = canvas.toDataURL("image/jpeg", quality);
+        resolve(dataUrl);
+      };
+      img.onerror = () => reject(new Error("Could not load image"));
+      img.src = e.target.result;
+    };
+    reader.onerror = () => reject(new Error("Could not read file"));
+    reader.readAsDataURL(file);
+  });
+}
+
 // Avatar upload trigger
 if (changeAvatarBtn && avatarFileInput) {
   changeAvatarBtn.addEventListener("click", () => avatarFileInput.click());
@@ -1703,23 +1746,41 @@ if (changeAvatarBtn && avatarFileInput) {
     const file = avatarFileInput.files[0];
     if (!file) return;
 
-    const formData = new FormData();
-    formData.append("avatar", file);
-
     try {
-      const res = await fetch("/api/profile/avatar", { method: "POST", body: formData });
+      changeAvatarBtn.disabled = true;
+      changeAvatarBtn.textContent = "Uploading...";
+
+      const compressedDataUrl = await compressAvatar(file, 256, 0.85).catch(() => null);
+
+      let res;
+      if (compressedDataUrl) {
+        res = await fetch("/api/profile/avatar", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ avatarDataUrl: compressedDataUrl }),
+        });
+      } else {
+        const formData = new FormData();
+        formData.append("avatar", file);
+        res = await fetch("/api/profile/avatar", { method: "POST", body: formData });
+      }
+
       const data = await res.json();
       if (res.ok && data.avatarUrl) {
         myAvatarUrl = data.avatarUrl;
         profileCurrentAvatar.src = data.avatarUrl;
         profileCurrentAvatar.style.display = "inline-block";
         updateHeaderAvatar();
-        alert("Profile photo updated!");
+        alert("Profile photo updated successfully!");
       } else {
         alert(data.error || "Could not update avatar");
       }
     } catch (err) {
       alert("Error uploading avatar.");
+    } finally {
+      changeAvatarBtn.disabled = false;
+      changeAvatarBtn.textContent = "Change Avatar";
+      avatarFileInput.value = "";
     }
   });
 }
@@ -2234,12 +2295,22 @@ socket.on("user_avatar_updated", ({ username, avatarUrl }) => {
     if (avatarUrl) {
       if (el.tagName === "IMG") {
         el.src = avatarUrl;
+        el.setAttribute("referrerpolicy", "no-referrer");
       } else {
         const newImg = document.createElement("img");
         newImg.className = el.className.replace("avatar-placeholder", "").trim();
         newImg.src = avatarUrl;
         newImg.alt = username;
         newImg.setAttribute("data-avatar-user", username);
+        newImg.setAttribute("referrerpolicy", "no-referrer");
+        const initial = (username || "U")[0].toUpperCase();
+        newImg.onerror = function () {
+          const s = document.createElement("span");
+          s.className = "user-avatar small avatar-placeholder";
+          s.setAttribute("data-avatar-user", username);
+          s.textContent = initial;
+          newImg.replaceWith(s);
+        };
         el.replaceWith(newImg);
       }
     }
