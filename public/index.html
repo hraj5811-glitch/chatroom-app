@@ -27,6 +27,7 @@
           <a href="#how-it-works">How it works</a>
         </nav>
         <div class="header-actions">
+          <button id="landing-theme-toggle" class="btn-theme-landing" title="Toggle Dark/Light Mode">🌙</button>
           <a href="app.html" class="login-link">Log in</a>
           <a href="app.html" class="btn btn-primary btn-sm">Get started</a>
         </div>
@@ -202,5 +203,21 @@
         </div>
       </div>
     </footer>
+    <script>
+      const themeBtn = document.getElementById("landing-theme-toggle");
+      const savedTheme = localStorage.getItem("chat-theme");
+      const prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+      if (savedTheme === "dark" || (!savedTheme && prefersDark)) {
+        document.body.classList.add("dark-theme");
+        if (themeBtn) themeBtn.textContent = "☀️";
+      }
+      if (themeBtn) {
+        themeBtn.addEventListener("click", () => {
+          const isDark = document.body.classList.toggle("dark-theme");
+          localStorage.setItem("chat-theme", isDark ? "dark" : "light");
+          themeBtn.textContent = isDark ? "☀️" : "🌙";
+        });
+      }
+    </script>
   </body>
 </html>

@@ -191,6 +191,10 @@ const unpinBtn = document.getElementById("unpin-btn");
 let myUsername = "";
 let myAvatarUrl = null;
 let myBio = "";
+let myCollege = "";
+let myInterests = [];
+let myIsPublicProfile = true;
+let myIsOnboarded = false;
 let myStatus = "Online";
 let myIsGuest = true;
 
@@ -289,12 +293,21 @@ async function checkAuth() {
       myIsGuest = data.isGuest;
       myAvatarUrl = data.avatarUrl || null;
       myBio = data.bio || "";
+      myCollege = data.college || "";
+      myInterests = data.interests || [];
+      myIsPublicProfile = data.isPublicProfile ?? true;
+      myIsOnboarded = Boolean(data.isOnboarded);
       myStatus = data.status || "Online";
 
       // Join DM channel on socket
       socket.emit("join_dm_channel");
 
       showRoomChoiceScreen();
+
+      // Trigger Onboarding modal if logged-in user has not completed onboarding
+      if (!myIsGuest && !myIsOnboarded) {
+        openOnboardingModal();
+      }
     } else {
       showScreen(authScreen);
     }
@@ -338,6 +351,10 @@ guestBtn.addEventListener("click", async () => {
     myIsGuest = true;
     myAvatarUrl = null;
     myBio = "";
+    myCollege = "";
+    myInterests = [];
+    myIsPublicProfile = true;
+    myIsOnboarded = true;
     if (socket.connected) {
       socket.disconnect().connect();
     } else {
@@ -349,18 +366,39 @@ guestBtn.addEventListener("click", async () => {
   }
 });
 
-// ---- Theme toggle ----
-const savedTheme = localStorage.getItem("chat-theme");
-if (savedTheme === "dark") {
-  document.body.classList.add("dark-theme");
-  themeToggle.textContent = "☀️";
+// ---- Universal Global Theme Sync across all pages & screens ----
+function updateThemeIcons(isDark) {
+  document.querySelectorAll(".global-theme-toggle, #theme-toggle").forEach((btn) => {
+    btn.textContent = isDark ? "☀️" : "🌙";
+  });
 }
 
-themeToggle.addEventListener("click", () => {
+function initTheme() {
+  const savedTheme = localStorage.getItem("chat-theme");
+  const prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+  const isDark = savedTheme === "dark" || (!savedTheme && prefersDark);
+  if (isDark) {
+    document.body.classList.add("dark-theme");
+  } else {
+    document.body.classList.remove("dark-theme");
+  }
+  updateThemeIcons(isDark);
+}
+
+function toggleGlobalTheme() {
   const isDark = document.body.classList.toggle("dark-theme");
-  themeToggle.textContent = isDark ? "☀️" : "🌙";
   localStorage.setItem("chat-theme", isDark ? "dark" : "light");
+  updateThemeIcons(isDark);
+}
+
+document.addEventListener("click", (e) => {
+  const themeBtn = e.target.closest(".global-theme-toggle, #theme-toggle");
+  if (themeBtn) {
+    toggleGlobalTheme();
+  }
 });
+
+initTheme();
 
 // ---- Mobile Drawer Toggle ----
 function openSidebar() {
@@ -473,10 +511,56 @@ async function fetchDiscoverRooms() {
     const res = await fetch(`/api/rooms/discover?category=${cat}&search=${q}`);
     if (!res.ok) throw new Error("Failed to load");
     const data = await res.json();
+    renderTrendingRooms(data.trending || []);
     renderDiscoverRooms(data.rooms || []);
   } catch (err) {
     discoverRoomsGrid.innerHTML = `<p class="sub" style="grid-column:1/-1; text-align:center;">Could not load public rooms. Please try again.</p>`;
   }
+}
+
+function renderTrendingRooms(trending) {
+  const shelf = document.getElementById("trending-shelf");
+  const grid = document.getElementById("trending-rooms-grid");
+  if (!shelf || !grid) return;
+
+  if (!trending.length || currentCategory !== "All" || discoverSearchInput.value.trim().length > 0) {
+    shelf.classList.add("hidden");
+    return;
+  }
+  shelf.classList.remove("hidden");
+  grid.innerHTML = "";
+
+  trending.forEach((r) => {
+    const card = document.createElement("div");
+    card.className = "trending-room-card";
+    const userCount = r.onlineCount || 0;
+    const cat = r.category || "General";
+    const lockBadge = r.isPasswordProtected ? `<span class="lock-pill">🔒</span>` : "";
+
+    card.innerHTML = `
+      <span class="trending-badge-top">🔥 Hot</span>
+      <div>
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:0.4rem; padding-right:2.2rem;">
+          <strong style="font-size:0.92rem; color:var(--text-main);">${escapeHtml(r.name || "Room #" + r.roomId)}</strong>
+        </div>
+        <span class="room-card-badge" style="margin-top:0.35rem;">${cat} ${lockBadge}</span>
+      </div>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:0.4rem;">
+        <span style="font-size:0.75rem; font-weight:700; color:var(--success);">🟢 ${userCount} online</span>
+        <button class="btn btn-sm btn-primary join-trending-btn" data-room="${r.roomId}">Join →</button>
+      </div>
+    `;
+
+    card.querySelector(".join-trending-btn").addEventListener("click", () => {
+      if (r.isPasswordProtected) {
+        promptRoomPassword(r.roomId);
+      } else {
+        joinRoom(r.roomId);
+      }
+    });
+
+    grid.appendChild(card);
+  });
 }
 
 function renderDiscoverRooms(rooms) {
@@ -689,6 +773,132 @@ async function joinRoom(roomId, password = null) {
   }
 }
 
+// Dynamic Category-themed Room Wallpaper
+function applyCategoryWallpaper(category) {
+  const chatMain = document.querySelector(".chat-main");
+  if (!chatMain) return;
+  chatMain.className = chatMain.className
+    .split(" ")
+    .filter((c) => !c.startsWith("cat-theme-"))
+    .join(" ");
+  const cleanCat = String(category || "General").toLowerCase();
+  chatMain.classList.add(`cat-theme-${cleanCat}`);
+}
+
+// In-Room Members Drawer & Host Delegation
+async function openRoomMembersDrawer() {
+  const drawer = document.getElementById("room-members-drawer");
+  const listEl = document.getElementById("room-members-list");
+  if (!drawer || !listEl || !currentRoomId) return;
+
+  drawer.classList.remove("hidden");
+  listEl.innerHTML = `<p class="sub" style="padding:1.5rem; text-align:center;">Loading room members...</p>`;
+
+  try {
+    const res = await fetch(`/api/rooms/${currentRoomId}/members`);
+    if (!res.ok) throw new Error("Failed to load");
+    const data = await res.json();
+    renderRoomMembersList(data);
+  } catch (err) {
+    listEl.innerHTML = `<p class="sub" style="padding:1.5rem; text-align:center;">Could not load members.</p>`;
+  }
+}
+
+function renderRoomMembersList(data) {
+  const listEl = document.getElementById("room-members-list");
+  if (!listEl) return;
+
+  const isHost = myUsername === data.host;
+  const members = data.members || [];
+  listEl.innerHTML = "";
+
+  if (!members.length) {
+    listEl.innerHTML = `<p class="sub" style="padding:1.5rem; text-align:center;">No members found.</p>`;
+    return;
+  }
+
+  // Sort: Host first, then Moderators, then Online, then others
+  members.sort((a, b) => {
+    if (a.isHost) return -1;
+    if (b.isHost) return 1;
+    if (a.isModerator && !b.isModerator) return -1;
+    if (!a.isModerator && b.isModerator) return 1;
+    if (a.isOnline && !b.isOnline) return -1;
+    if (!a.isOnline && b.isOnline) return 1;
+    return a.username.localeCompare(b.username);
+  });
+
+  members.forEach((m) => {
+    const row = document.createElement("div");
+    row.className = "member-item-row";
+    const avatarHtml = renderAvatarImg(m.avatarUrl, m.username, "small");
+
+    let roleBadge = `<span class="role-badge member">Member</span>`;
+    if (m.isHost) {
+      roleBadge = `<span class="role-badge host">👑 Host</span>`;
+    } else if (m.isModerator) {
+      roleBadge = `<span class="role-badge mod">🛡️ Mod</span>`;
+    }
+
+    let actionBtn = "";
+    if (isHost && !m.isHost) {
+      if (m.isModerator) {
+        actionBtn = `<button class="btn-role-action demote-mod-btn" title="Remove moderator rights">Demote</button>`;
+      } else {
+        actionBtn = `<button class="btn-role-action promote-mod-btn" title="Make moderator">⭐ Make Mod</button>`;
+      }
+    }
+
+    row.innerHTML = `
+      <div class="member-info-left" style="cursor:pointer;">
+        ${avatarHtml}
+        <div>
+          <div style="display:flex; align-items:center; gap:0.35rem;">
+            <strong style="font-size:0.85rem;">${escapeHtml(m.username)}</strong>
+            ${roleBadge}
+          </div>
+          <span style="font-size:0.72rem; color:var(--text-muted);">${m.isOnline ? "🟢 Online" : "⚪ Offline"} ${m.college ? "• 🎓 " + escapeHtml(m.college) : ""}</span>
+        </div>
+      </div>
+      <div>${actionBtn}</div>
+    `;
+
+    row.querySelector(".member-info-left").addEventListener("click", () => {
+      if (m.username !== myUsername) {
+        openUserProfileModal(m.username);
+      }
+    });
+
+    const promoteBtn = row.querySelector(".promote-mod-btn");
+    if (promoteBtn) {
+      promoteBtn.addEventListener("click", async () => {
+        promoteBtn.disabled = true;
+        await fetch(`/api/rooms/${currentRoomId}/moderators`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ targetUsername: m.username, action: "promote" }),
+        });
+        openRoomMembersDrawer();
+      });
+    }
+
+    const demoteBtn = row.querySelector(".demote-mod-btn");
+    if (demoteBtn) {
+      demoteBtn.addEventListener("click", async () => {
+        demoteBtn.disabled = true;
+        await fetch(`/api/rooms/${currentRoomId}/moderators`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ targetUsername: m.username, action: "demote" }),
+        });
+        openRoomMembersDrawer();
+      });
+    }
+
+    listEl.appendChild(row);
+  });
+}
+
 // ---- Enter Chat Screen ----
 function enterChat(roomId, roomInfo) {
   currentRoomId = roomId;
@@ -697,11 +907,15 @@ function enterChat(roomId, roomInfo) {
   currentPinnedMessage = roomInfo?.pinnedMessage || null;
 
   showScreen(chatScreen);
+  applyCategoryWallpaper(roomInfo?.category || "General");
 
   roomTitle.textContent = roomInfo?.name || `Room #${roomId}`;
   mobileRoomName.textContent = roomInfo?.name || `Room #${roomId}`;
   roomCatPill.textContent = roomInfo?.category || "General";
   roomCodeBadge.textContent = `#${roomId}`;
+
+  const drawer = document.getElementById("room-members-drawer");
+  if (drawer) drawer.classList.add("hidden");
 
   messagesEl.innerHTML = "";
   typingIndicator.textContent = "";
@@ -716,6 +930,17 @@ function enterChat(roomId, roomInfo) {
   socket.emit("join_room", { room: roomId });
   messageInput.focus();
 }
+
+// Bind room members drawer buttons
+document.addEventListener("click", (e) => {
+  if (e.target.closest("#room-members-btn") || e.target.closest("#mobile-members-btn")) {
+    openRoomMembersDrawer();
+  }
+  if (e.target.closest("#close-members-drawer-btn")) {
+    const drawer = document.getElementById("room-members-drawer");
+    if (drawer) drawer.classList.add("hidden");
+  }
+});
 
 // ---- Direct Messaging (1-on-1 DMs) Client Logic ----
 
@@ -946,13 +1171,81 @@ if (newDmBtn) {
 async function fetchFriends() {
   if (myIsGuest) return;
   try {
-    const res = await fetch("/api/friends");
-    if (!res.ok) return;
-    const data = await res.json();
-    renderFriends(data.friends || []);
+    const [friendsRes, suggestedRes] = await Promise.all([
+      fetch("/api/friends"),
+      fetch("/api/friends/suggested"),
+    ]);
+
+    if (friendsRes.ok) {
+      const data = await friendsRes.json();
+      renderFriends(data.friends || []);
+    }
+
+    if (suggestedRes && suggestedRes.ok) {
+      const sData = await suggestedRes.json();
+      renderSuggestedFriends(sData.suggested || []);
+    }
   } catch (err) {
     console.error("Failed to load friends:", err);
   }
+}
+
+function renderSuggestedFriends(suggested) {
+  const section = document.getElementById("suggested-friends-section");
+  const grid = document.getElementById("suggested-friends-grid");
+  if (!section || !grid) return;
+
+  if (!suggested.length) {
+    section.classList.add("hidden");
+    return;
+  }
+  section.classList.remove("hidden");
+  grid.innerHTML = "";
+
+  suggested.forEach((s) => {
+    const card = document.createElement("div");
+    card.className = "suggested-card";
+    const avatarHtml = renderAvatarImg(s.avatarUrl, s.username, "small");
+
+    let matchBadges = "";
+    if (s.sameCollege && s.college) {
+      matchBadges += `<span class="shared-match-pill">🎓 Same College (${escapeHtml(s.college)})</span>`;
+    }
+    if (s.sharedInterests && s.sharedInterests.length > 0) {
+      matchBadges += `<span class="shared-match-pill">🎯 ${s.sharedInterests.length} Shared Topics</span>`;
+    }
+
+    card.innerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;" class="suggested-user-head">
+          ${avatarHtml}
+          <div>
+            <strong>${escapeHtml(s.username)}</strong>
+            <div style="font-size:0.75rem; color:var(--text-muted);">${s.isOnline ? "🟢 Online" : "⚪ Offline"}</div>
+          </div>
+        </div>
+        <button class="btn btn-sm btn-outline add-suggested-btn" data-username="${s.username}">+ Add</button>
+      </div>
+      ${matchBadges ? `<div style="display:flex; flex-wrap:wrap; gap:0.25rem; margin-top:0.3rem;">${matchBadges}</div>` : ""}
+    `;
+
+    card.querySelector(".suggested-user-head").addEventListener("click", () => {
+      openUserProfileModal(s.username);
+    });
+
+    card.querySelector(".add-suggested-btn").addEventListener("click", async (e) => {
+      e.target.disabled = true;
+      e.target.textContent = "Sent...";
+      await fetch("/api/friends/request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: s.username }),
+      });
+      fetchFriends();
+    });
+
+    grid.appendChild(card);
+  });
 }
 
 function renderFriends(friends) {
@@ -1083,7 +1376,48 @@ async function openUserProfileModal(username) {
 
     profileModalUsername.textContent = data.displayName || data.username;
     profileModalStatusText.textContent = data.isOnline ? "🟢 Online" : "⚪ Offline";
-    profileModalBio.textContent = data.bio || "No bio written yet.";
+    profileModalBio.textContent = data.bio || (data.isPublicProfile ? "No bio written yet." : "This profile is private.");
+
+    const privacyTag = document.getElementById("profile-modal-privacy-tag");
+    if (privacyTag) {
+      privacyTag.textContent = data.isPublicProfile ? "🌐 Public" : "🔒 Private";
+      privacyTag.className = `privacy-badge ${data.isPublicProfile ? "public" : "private"}`;
+    }
+
+    const collegeEl = document.getElementById("profile-modal-college");
+    const collegeNameEl = document.getElementById("profile-modal-college-name");
+    if (collegeEl && collegeNameEl) {
+      if (data.college) {
+        collegeNameEl.textContent = data.college;
+        collegeEl.classList.remove("hidden");
+      } else {
+        collegeEl.classList.add("hidden");
+      }
+    }
+
+    // Shared match badge
+    const matchBox = document.getElementById("profile-modal-shared-match");
+    const matchText = document.getElementById("profile-modal-shared-text");
+    if (matchBox && matchText) {
+      if (data.sharedInterests && data.sharedInterests.length > 0) {
+        matchText.textContent = `${data.sharedInterests.length} Shared Topics (${data.sharedInterests.join(", ")})`;
+        matchBox.classList.remove("hidden");
+      } else {
+        matchBox.classList.add("hidden");
+      }
+    }
+
+    // Interests list
+    const interestsWrap = document.getElementById("profile-modal-interests-wrap");
+    const interestsList = document.getElementById("profile-modal-interests-list");
+    if (interestsWrap && interestsList) {
+      if (data.interests && data.interests.length > 0) {
+        interestsList.innerHTML = data.interests.map((i) => `<span class="category-chip" style="cursor:default; font-size:0.75rem; padding:0.2rem 0.6rem;">${escapeHtml(i)}</span>`).join("");
+        interestsWrap.classList.remove("hidden");
+      } else {
+        interestsWrap.classList.add("hidden");
+      }
+    }
 
     if (data.avatarUrl) {
       profileModalAvatar.src = data.avatarUrl;
@@ -1097,7 +1431,6 @@ async function openUserProfileModal(username) {
     profileModalDmBtn.onclick = () => {
       userProfileModal.classList.add("hidden");
       if (currentRoomId) {
-        // Leave chat or switch
         showRoomChoiceScreen();
       }
       switchHubTab("dms");
@@ -1136,6 +1469,69 @@ if (closeUserProfileModal) {
   });
 }
 
+// ---- Onboarding Setup Modal ----
+function openOnboardingModal() {
+  const modal = document.getElementById("onboarding-modal");
+  if (!modal) return;
+  modal.classList.remove("hidden");
+
+  const chips = modal.querySelectorAll(".interest-chip");
+  chips.forEach((c) => {
+    c.classList.toggle("selected", myInterests.includes(c.dataset.val));
+    c.onclick = () => {
+      c.classList.toggle("selected");
+    };
+  });
+
+  const collegeInputEl = document.getElementById("onboarding-college-input");
+  if (collegeInputEl) collegeInputEl.value = myCollege || "";
+
+  const form = document.getElementById("onboarding-form");
+  if (form) {
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      const selectedInterests = Array.from(modal.querySelectorAll(".interest-chip.selected")).map((c) => c.dataset.val);
+      const collegeVal = collegeInputEl ? collegeInputEl.value.trim() : "";
+      const privacyVal = modal.querySelector('input[name="onboarding-privacy"]:checked')?.value === "public";
+
+      const submitBtn = document.getElementById("onboarding-submit-btn");
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = "Saving...";
+      }
+
+      try {
+        const res = await fetch("/api/profile/onboarding", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            interests: selectedInterests,
+            college: collegeVal,
+            isPublicProfile: privacyVal,
+          }),
+        });
+
+        if (res.ok) {
+          const d = await res.json();
+          myInterests = d.interests;
+          myCollege = d.college;
+          myIsPublicProfile = d.isPublicProfile;
+          myIsOnboarded = true;
+          modal.classList.add("hidden");
+          fetchDiscoverRooms();
+        }
+      } catch (err) {
+        alert("Failed to save preferences. Please try again.");
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = "🚀 Save & Explore Kothaa";
+        }
+      }
+    };
+  }
+}
+
 // ---- Profile Screen Management ----
 
 profileLink.addEventListener("click", (e) => {
@@ -1156,6 +1552,25 @@ async function loadProfile() {
     usernameInput.value = data.username;
     bioInput.value = data.bio || "";
     myAvatarUrl = data.avatarUrl || null;
+    myCollege = data.college || "";
+    myInterests = data.interests || [];
+    myIsPublicProfile = data.isPublicProfile ?? true;
+
+    const collegeInp = document.getElementById("college-input");
+    if (collegeInp) collegeInp.value = myCollege;
+
+    const profileChips = document.querySelectorAll("#profile-interests-chips .interest-chip");
+    profileChips.forEach((c) => {
+      c.classList.toggle("selected", myInterests.includes(c.dataset.val));
+      c.onclick = () => c.classList.toggle("selected");
+    });
+
+    const pubRadio = document.getElementById("privacy-public-opt");
+    const privRadio = document.getElementById("privacy-private-opt");
+    if (pubRadio && privRadio) {
+      pubRadio.checked = myIsPublicProfile;
+      privRadio.checked = !myIsPublicProfile;
+    }
 
     if (myAvatarUrl) {
       profileCurrentAvatar.src = myAvatarUrl;
@@ -1252,6 +1667,96 @@ if (saveBioBtn) {
     } catch (err) {
       bioMsg.textContent = "Network error.";
       bioMsg.classList.remove("hidden");
+    }
+  });
+}
+
+// Save College
+const saveCollegeBtn = document.getElementById("save-college-btn");
+if (saveCollegeBtn) {
+  saveCollegeBtn.addEventListener("click", async () => {
+    const college = document.getElementById("college-input").value.trim();
+    const collegeMsg = document.getElementById("college-msg");
+    if (collegeMsg) collegeMsg.classList.add("hidden");
+    try {
+      const res = await fetch("/api/profile/details", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ college }),
+      });
+      if (res.ok) {
+        myCollege = college;
+        if (collegeMsg) {
+          collegeMsg.textContent = "College saved!";
+          collegeMsg.classList.remove("hidden");
+          collegeMsg.style.color = "var(--success)";
+        }
+      }
+    } catch (err) {
+      if (collegeMsg) {
+        collegeMsg.textContent = "Error saving college.";
+        collegeMsg.classList.remove("hidden");
+      }
+    }
+  });
+}
+
+// Save Interests
+const saveInterestsBtn = document.getElementById("save-interests-btn");
+if (saveInterestsBtn) {
+  saveInterestsBtn.addEventListener("click", async () => {
+    const selected = Array.from(document.querySelectorAll("#profile-interests-chips .interest-chip.selected")).map((c) => c.dataset.val);
+    const interestsMsg = document.getElementById("interests-msg");
+    if (interestsMsg) interestsMsg.classList.add("hidden");
+    try {
+      const res = await fetch("/api/profile/details", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ interests: selected }),
+      });
+      if (res.ok) {
+        myInterests = selected;
+        if (interestsMsg) {
+          interestsMsg.textContent = "Interests saved!";
+          interestsMsg.classList.remove("hidden");
+          interestsMsg.style.color = "var(--success)";
+        }
+      }
+    } catch (err) {
+      if (interestsMsg) {
+        interestsMsg.textContent = "Error saving interests.";
+        interestsMsg.classList.remove("hidden");
+      }
+    }
+  });
+}
+
+// Save Privacy
+const savePrivacyBtn = document.getElementById("save-privacy-btn");
+if (savePrivacyBtn) {
+  savePrivacyBtn.addEventListener("click", async () => {
+    const isPublic = document.getElementById("privacy-public-opt").checked;
+    const privacyMsg = document.getElementById("privacy-msg");
+    if (privacyMsg) privacyMsg.classList.add("hidden");
+    try {
+      const res = await fetch("/api/profile/details", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isPublicProfile: isPublic }),
+      });
+      if (res.ok) {
+        myIsPublicProfile = isPublic;
+        if (privacyMsg) {
+          privacyMsg.textContent = "Privacy preference updated!";
+          privacyMsg.classList.remove("hidden");
+          privacyMsg.style.color = "var(--success)";
+        }
+      }
+    } catch (err) {
+      if (privacyMsg) {
+        privacyMsg.textContent = "Error updating privacy.";
+        privacyMsg.classList.remove("hidden");
+      }
     }
   });
 }
@@ -1547,11 +2052,22 @@ socket.on("room_history", ({ messages, roomInfo }) => {
   currentRoomHost = roomInfo?.creatorUsername || "";
   currentRoomMods = roomInfo?.moderators || [];
   renderPinnedAnnouncement(roomInfo?.pinnedMessage || null);
+  applyCategoryWallpaper(roomInfo?.category || "General");
 
   messagesEl.innerHTML = "";
   if (messages && messages.length) {
     messages.forEach((m) => renderMessage(m));
     messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+});
+
+socket.on("moderators_updated", ({ roomId, moderators }) => {
+  if (roomId === currentRoomId) {
+    currentRoomMods = moderators || [];
+    const drawer = document.getElementById("room-members-drawer");
+    if (drawer && !drawer.classList.contains("hidden")) {
+      openRoomMembersDrawer();
+    }
   }
 });
 

@@ -7,6 +7,10 @@ const userSchema = new mongoose.Schema({
   username: { type: String, unique: true, required: true }, // permanent chat identity, e.g. User48213
   avatarUrl: { type: String, default: null },
   bio: { type: String, maxlength: 160, default: "" },
+  college: { type: String, maxlength: 100, default: "" },
+  interests: [{ type: String }],
+  isPublicProfile: { type: Boolean, default: true },
+  isOnboarded: { type: Boolean, default: false },
   friends: [
     {
       username: { type: String, required: true },

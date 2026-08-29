@@ -154,6 +154,10 @@ app.get("/api/me", (req, res) => {
       email: req.user.email,
       avatarUrl: req.user.avatarUrl || null,
       bio: req.user.bio || "",
+      college: req.user.college || "",
+      interests: req.user.interests || [],
+      isPublicProfile: req.user.isPublicProfile ?? true,
+      isOnboarded: Boolean(req.user.isOnboarded),
       status: req.user.status || "Online",
       isGuest: false,
     });
@@ -163,6 +167,10 @@ app.get("/api/me", (req, res) => {
       username: req.session.guestUsername,
       avatarUrl: null,
       bio: "",
+      college: "",
+      interests: [],
+      isPublicProfile: true,
+      isOnboarded: true,
       status: "Online",
       isGuest: true,
     });
@@ -194,7 +202,7 @@ app.post("/api/upload", upload.single("image"), (req, res) => {
 
 // ---- Room routes ----
 
-// Discover public rooms
+// Discover public rooms (with Trending and Category sorting)
 app.get("/api/rooms/discover", async (req, res) => {
   try {
     const filter = { isPublic: true };
@@ -213,7 +221,7 @@ app.get("/api/rooms/discover", async (req, res) => {
     const rooms = await Room.find(filter)
       .populate("createdBy", "username displayName")
       .sort({ createdAt: -1 })
-      .limit(40)
+      .limit(60)
       .lean();
 
     const roomIds = rooms.map((r) => r.roomId);
@@ -234,14 +242,19 @@ app.get("/api/rooms/discover", async (req, res) => {
         description: r.description || "",
         category: r.category || "General",
         isPasswordProtected: Boolean(r.isPasswordProtected),
-        createdBy: r.createdBy?.username || "Guest",
+        createdBy: r.createdBy?.username || r.creatorUsername || "Guest",
         createdAt: r.createdAt,
         onlineCount,
         messageCount: countMap[r.roomId] || 0,
       };
     });
 
-    res.json({ rooms: enriched });
+    // Trending rooms = Top rooms with highest onlineCount & message activity
+    const trending = [...enriched]
+      .sort((a, b) => (b.onlineCount * 3 + b.messageCount) - (a.onlineCount * 3 + a.messageCount))
+      .slice(0, 6);
+
+    res.json({ rooms: enriched, trending });
   } catch (err) {
     console.error("Discover rooms failed:", err);
     res.status(500).json({ error: "Could not fetch public rooms" });
@@ -426,19 +439,251 @@ app.put("/api/profile/bio", requireLogin, async (req, res) => {
   res.json({ bio: req.user.bio });
 });
 
-// Lookup any user's profile card
+// Save initial Onboarding preferences
+app.put("/api/profile/onboarding", requireLogin, async (req, res) => {
+  try {
+    const { interests, college, isPublicProfile } = req.body;
+    if (Array.isArray(interests)) {
+      req.user.interests = interests.map((i) => String(i).trim().slice(0, 30)).filter(Boolean).slice(0, 10);
+    }
+    if (typeof college === "string") {
+      req.user.college = college.trim().slice(0, 100);
+    }
+    if (typeof isPublicProfile === "boolean") {
+      req.user.isPublicProfile = isPublicProfile;
+    }
+    req.user.isOnboarded = true;
+    await req.user.save();
+    res.json({
+      success: true,
+      interests: req.user.interests,
+      college: req.user.college,
+      isPublicProfile: req.user.isPublicProfile,
+      isOnboarded: true,
+    });
+  } catch (err) {
+    console.error("Onboarding failed:", err);
+    res.status(500).json({ error: "Could not save onboarding preferences" });
+  }
+});
+
+// Update rich profile details (Bio, College, Interests, Privacy)
+app.put("/api/profile/details", requireLogin, async (req, res) => {
+  try {
+    const { bio, college, interests, isPublicProfile } = req.body;
+    if (typeof bio === "string") req.user.bio = bio.trim().slice(0, 160);
+    if (typeof college === "string") req.user.college = college.trim().slice(0, 100);
+    if (Array.isArray(interests)) {
+      req.user.interests = interests.map((i) => String(i).trim().slice(0, 30)).filter(Boolean).slice(0, 10);
+    }
+    if (typeof isPublicProfile === "boolean") req.user.isPublicProfile = isPublicProfile;
+    await req.user.save();
+    res.json({
+      success: true,
+      bio: req.user.bio,
+      college: req.user.college,
+      interests: req.user.interests,
+      isPublicProfile: req.user.isPublicProfile,
+    });
+  } catch (err) {
+    console.error("Profile update failed:", err);
+    res.status(500).json({ error: "Could not update profile details" });
+  }
+});
+
+// Lookup any user's profile card (respects privacy toggle & calculates shared interests)
 app.get("/api/users/:username", async (req, res) => {
   try {
     const target = await User.findOne({ username: req.params.username })
-      .select("username displayName avatarUrl bio status createdAt")
+      .select("username displayName avatarUrl bio college interests isPublicProfile status createdAt")
       .lean();
     if (!target) {
       return res.status(404).json({ error: "User not found" });
     }
     const isOnline = Object.values(activeUsers).some((u) => u.username === target.username);
-    res.json({ ...target, isOnline });
+
+    const currentUsername = req.isAuthenticated && req.isAuthenticated() ? req.user.username : (req.session.guestUsername || "");
+    const isSelf = currentUsername === target.username;
+    const isPublic = target.isPublicProfile !== false || isSelf;
+
+    let sharedInterests = [];
+    if (req.user && Array.isArray(req.user.interests) && Array.isArray(target.interests)) {
+      sharedInterests = target.interests.filter((i) => req.user.interests.includes(i));
+    }
+
+    if (!isPublic) {
+      return res.json({
+        username: target.username,
+        displayName: target.displayName,
+        avatarUrl: target.avatarUrl,
+        status: target.status,
+        isOnline,
+        isPublicProfile: false,
+        bio: "",
+        college: "",
+        interests: [],
+        sharedInterests: [],
+        createdAt: target.createdAt,
+      });
+    }
+
+    res.json({
+      username: target.username,
+      displayName: target.displayName,
+      avatarUrl: target.avatarUrl,
+      bio: target.bio || "",
+      college: target.college || "",
+      interests: target.interests || [],
+      status: target.status,
+      isOnline,
+      isPublicProfile: true,
+      sharedInterests,
+      createdAt: target.createdAt,
+    });
   } catch (err) {
     res.status(500).json({ error: "Could not fetch user profile" });
+  }
+});
+
+// Suggested Friends algorithm based on shared interests / college
+app.get("/api/friends/suggested", requireLogin, async (req, res) => {
+  try {
+    const myUser = req.user;
+    const existingFriendUsernames = (myUser.friends || []).map((f) => f.username);
+    existingFriendUsernames.push(myUser.username);
+
+    const candidates = await User.find({
+      username: { $nin: existingFriendUsernames },
+      isPublicProfile: { $ne: false },
+    })
+      .select("username avatarUrl bio college interests status")
+      .limit(30)
+      .lean();
+
+    const myInterests = myUser.interests || [];
+    const myCollege = (myUser.college || "").toLowerCase().trim();
+
+    const scored = candidates.map((cand) => {
+      const candInterests = cand.interests || [];
+      const sharedInterests = candInterests.filter((i) => myInterests.includes(i));
+      const candCollege = (cand.college || "").toLowerCase().trim();
+      const sameCollege = myCollege && candCollege && myCollege === candCollege;
+      const isOnline = Object.values(activeUsers).some((u) => u.username === cand.username);
+
+      let score = sharedInterests.length * 2;
+      if (sameCollege) score += 3;
+      if (isOnline) score += 1;
+
+      return {
+        username: cand.username,
+        avatarUrl: cand.avatarUrl,
+        bio: cand.bio,
+        college: cand.college,
+        interests: cand.interests,
+        sharedInterests,
+        sameCollege: Boolean(sameCollege),
+        isOnline,
+        score,
+      };
+    });
+
+    scored.sort((a, b) => b.score - a.score);
+    res.json({ suggested: scored.slice(0, 10) });
+  } catch (err) {
+    console.error("Suggested friends failed:", err);
+    res.status(500).json({ error: "Could not fetch suggestions" });
+  }
+});
+
+// In-Room Members List (Host, Moderators, Online Users)
+app.get("/api/rooms/:roomId/members", async (req, res) => {
+  try {
+    const roomId = String(req.params.roomId || "").toUpperCase().trim();
+    const room = await Room.findOne({ roomId }).lean();
+    if (!room) return res.status(404).json({ error: "Room not found" });
+
+    const host = room.creatorUsername;
+    const moderators = room.moderators || [];
+
+    const onlineInRoom = Object.values(activeUsers)
+      .filter((u) => u.room === roomId)
+      .map((u) => u.username);
+
+    const uniqueUsernames = Array.from(new Set([host, ...moderators, ...onlineInRoom].filter(Boolean)));
+    const userDocs = await User.find({ username: { $in: uniqueUsernames } })
+      .select("username avatarUrl status college")
+      .lean();
+
+    const userDocMap = {};
+    userDocs.forEach((d) => { userDocMap[d.username] = d; });
+
+    const members = uniqueUsernames.map((uname) => {
+      const isHost = uname === host;
+      const isMod = moderators.includes(uname);
+      const isOnline = onlineInRoom.includes(uname);
+      const doc = userDocMap[uname];
+
+      let role = "Member";
+      if (isHost) role = "Host";
+      else if (isMod) role = "Moderator";
+
+      return {
+        username: uname,
+        role,
+        isHost,
+        isModerator: isMod,
+        isOnline,
+        avatarUrl: doc?.avatarUrl || null,
+        college: doc?.college || "",
+      };
+    });
+
+    res.json({
+      host,
+      moderators,
+      members,
+    });
+  } catch (err) {
+    console.error("Room members fetch failed:", err);
+    res.status(500).json({ error: "Could not fetch room members" });
+  }
+});
+
+// Room Host Moderator Delegation (Promote/Demote)
+app.post("/api/rooms/:roomId/moderators", async (req, res) => {
+  try {
+    const roomId = String(req.params.roomId || "").toUpperCase().trim();
+    const { targetUsername, action } = req.body;
+
+    const room = await Room.findOne({ roomId });
+    if (!room) return res.status(404).json({ error: "Room not found" });
+
+    const currentUsername = req.isAuthenticated && req.isAuthenticated() ? req.user.username : (req.session.guestUsername || "");
+    if (room.creatorUsername !== currentUsername) {
+      return res.status(403).json({ error: "Only the Room Host can manage moderators." });
+    }
+
+    if (action === "promote") {
+      if (!room.moderators.includes(targetUsername)) {
+        room.moderators.push(targetUsername);
+      }
+    } else if (action === "demote") {
+      room.moderators = room.moderators.filter((m) => m !== targetUsername);
+    }
+
+    await room.save();
+
+    io.to(roomId).emit("moderators_updated", {
+      roomId,
+      moderators: room.moderators,
+      targetUsername,
+      action,
+    });
+
+    res.json({ success: true, moderators: room.moderators });
+  } catch (err) {
+    console.error("Moderator update failed:", err);
+    res.status(500).json({ error: "Could not update moderators" });
   }
 });
 

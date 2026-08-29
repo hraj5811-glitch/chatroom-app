@@ -24,6 +24,9 @@
     <div class="card-wrap">
       <div class="glow-frame">
         <div class="card">
+          <div style="display:flex; justify-content:flex-end; width:100%;">
+            <button class="global-theme-toggle btn-icon-theme" title="Toggle Dark/Light Mode">🌙</button>
+          </div>
           <div class="card-head">
             <span class="brand">
               <span class="brand-icon badge-pulse">
@@ -71,6 +74,7 @@
               <span class="brand-name">kothaa</span>
             </div>
             <div class="hub-user-meta">
+              <button class="global-theme-toggle btn-icon-theme" title="Toggle Dark/Light Mode">🌙</button>
               <div id="header-avatar-wrap" class="header-avatar-wrap hidden">
                 <img id="header-user-avatar" class="user-avatar small" src="" alt="Avatar" />
               </div>
@@ -91,6 +95,15 @@
 
           <!-- SECTION 1: Discover Public Rooms -->
           <div id="hub-discover-pane" class="hub-pane active">
+            <!-- Trending Shelf -->
+            <div id="trending-shelf" class="trending-shelf hidden">
+              <div class="shelf-header">
+                <span class="shelf-title">🔥 Trending Rooms Now</span>
+                <span class="shelf-tag">Highest Live Activity</span>
+              </div>
+              <div id="trending-rooms-grid" class="trending-rooms-row"></div>
+            </div>
+
             <div class="discover-controls">
               <input type="text" id="discover-search-input" class="field-input" placeholder="🔍 Search rooms by name, topic, or code..." />
               <div class="category-chips-wrap">
@@ -174,6 +187,15 @@
               <div id="pending-requests-section" class="friends-section hidden">
                 <h4 class="section-title">Pending Requests (<span id="pending-requests-count">0</span>)</h4>
                 <div id="pending-requests-list" class="friends-grid"></div>
+              </div>
+
+              <!-- Suggested Connections (Matching Interests / College) -->
+              <div id="suggested-friends-section" class="friends-section hidden">
+                <div class="shelf-header">
+                  <h4 class="section-title">✨ People with Similar Interests</h4>
+                  <span class="shelf-tag">Shared Topics & College</span>
+                </div>
+                <div id="suggested-friends-grid" class="friends-grid"></div>
               </div>
 
               <!-- Friends Grid -->
@@ -347,8 +369,9 @@
     <div class="card-wrap wide">
       <div class="glow-frame">
         <div class="card">
-          <div style="display:flex; justify-content:flex-start; width:100%;">
+          <div style="display:flex; justify-content:space-between; align-items:center; width:100%;">
             <button id="profile-top-back-btn" class="back-pill-btn">← Back to Lobby</button>
+            <button class="global-theme-toggle btn-icon-theme" title="Toggle Dark/Light Mode">🌙</button>
           </div>
 
           <div class="card-head">
@@ -389,6 +412,55 @@
               </div>
               <p id="bio-msg" class="error-text hidden"></p>
             </label>
+
+            <label class="field">
+              <span class="field-label">College / University</span>
+              <div class="username-row">
+                <input id="college-input" class="field-input" placeholder="e.g. IIT Delhi, DTU, Stanford..." maxlength="100" />
+                <button id="save-college-btn" class="btn btn-primary btn-save">Save</button>
+              </div>
+              <p id="college-msg" class="error-text hidden"></p>
+            </label>
+
+            <!-- Interests Tag Selector -->
+            <div class="field">
+              <span class="field-label">My Topics & Interests</span>
+              <div class="interest-chips-grid" id="profile-interests-chips">
+                <button type="button" class="interest-chip" data-val="Tech">💻 Tech & Coding</button>
+                <button type="button" class="interest-chip" data-val="DSA">⚡ DSA & CP</button>
+                <button type="button" class="interest-chip" data-val="Study">📚 Study & Exams</button>
+                <button type="button" class="interest-chip" data-val="Gaming">🎮 Gaming & Esports</button>
+                <button type="button" class="interest-chip" data-val="Music">🎵 Music & Beats</button>
+                <button type="button" class="interest-chip" data-val="Movies">🎬 Movies & Shows</button>
+                <button type="button" class="interest-chip" data-val="Sports">⚽ Sports & Fitness</button>
+                <button type="button" class="interest-chip" data-val="Casual">☕ Casual Hangout</button>
+              </div>
+              <button id="save-interests-btn" class="btn btn-sm btn-primary" style="margin-top:0.5rem;">Save Selected Interests</button>
+              <p id="interests-msg" class="error-text hidden"></p>
+            </div>
+
+            <!-- Profile Privacy Toggle -->
+            <div class="field">
+              <span class="field-label">Profile Discoverability</span>
+              <div class="privacy-toggle-box">
+                <label class="privacy-option">
+                  <input type="radio" name="profile-privacy" value="public" id="privacy-public-opt" />
+                  <div class="privacy-opt-text">
+                    <strong>🌐 Public Profile (Recommended)</strong>
+                    <span>Other users can see your bio, college, and matching interests.</span>
+                  </div>
+                </label>
+                <label class="privacy-option">
+                  <input type="radio" name="profile-privacy" value="private" id="privacy-private-opt" />
+                  <div class="privacy-opt-text">
+                    <strong>🔒 Private Profile</strong>
+                    <span>College and interests are hidden. Only username and avatar are visible.</span>
+                  </div>
+                </label>
+              </div>
+              <button id="save-privacy-btn" class="btn btn-sm btn-primary" style="margin-top:0.5rem;">Update Privacy Preference</button>
+              <p id="privacy-msg" class="error-text hidden"></p>
+            </div>
           </div>
 
           <h3 class="rooms-heading">Joined / Created Rooms</h3>
@@ -447,7 +519,10 @@
         </select>
       </div>
 
-      <h3>Online (<span id="online-count">0</span>)</h3>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:0.25rem;">
+        <h3>Online (<span id="online-count">0</span>)</h3>
+        <button id="room-members-btn" class="btn btn-sm btn-outline" style="padding:0.2rem 0.6rem; font-size:0.75rem;">👥 All Members</button>
+      </div>
       <ul id="user-list"></ul>
 
       <div class="sidebar-footer">
@@ -468,7 +543,24 @@
           <span id="mobile-room-name">Room</span>
           <span id="mobile-online-tag" class="mobile-online-tag">🟢 1 online</span>
         </div>
-        <button id="mobile-share-btn" class="btn-icon-tiny" title="Copy Link">🔗</button>
+        <div style="display:flex; align-items:center; gap:0.3rem;">
+          <button id="mobile-members-btn" class="btn-icon-tiny" title="Members List">👥</button>
+          <button id="mobile-share-btn" class="btn-icon-tiny" title="Copy Link">🔗</button>
+        </div>
+      </div>
+
+      <!-- Room Members Drawer Panel -->
+      <div id="room-members-drawer" class="room-members-drawer hidden">
+        <div class="members-drawer-head">
+          <div style="display:flex; align-items:center; gap:0.4rem;">
+            <span style="font-size:1.15rem;">👥</span>
+            <h3 style="font-size:0.95rem; font-weight:700;">Room Members</h3>
+          </div>
+          <button id="close-members-drawer-btn" class="btn-icon-tiny">✕</button>
+        </div>
+        <div id="room-members-list" class="members-list-content">
+          <p class="sub" style="padding:1.5rem; text-align:center;">Loading members...</p>
+        </div>
       </div>
 
       <!-- Sticky Pinned Announcement Bar -->
@@ -573,6 +665,68 @@
     </div>
   </div>
 
+  <!-- Onboarding Preference Setup Modal -->
+  <div id="onboarding-modal" class="modal-overlay hidden">
+    <div class="modal-card onboarding-card">
+      <div class="modal-head">
+        <div class="brand">
+          <span class="brand-icon small badge-pulse">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22z"/></svg>
+          </span>
+          <span class="brand-name">kothaa</span>
+        </div>
+      </div>
+      <h2 class="onboarding-title">Personalize Your Experience ✨</h2>
+      <p class="sub">Tell us a bit about your interests so we can curate the best rooms & connections for you.</p>
+
+      <form id="onboarding-form" class="form">
+        <!-- Step 1: Interests -->
+        <div class="field">
+          <label class="field-label">1. CHOOSE YOUR INTERESTS & TOPICS (Pick 1 or more)</label>
+          <div class="interest-chips-grid" id="onboarding-interests">
+            <button type="button" class="interest-chip" data-val="Tech">💻 Tech & Coding</button>
+            <button type="button" class="interest-chip" data-val="DSA">⚡ DSA & CP</button>
+            <button type="button" class="interest-chip" data-val="Study">📚 Study & Exams</button>
+            <button type="button" class="interest-chip" data-val="Gaming">🎮 Gaming & Esports</button>
+            <button type="button" class="interest-chip" data-val="Music">🎵 Music & Beats</button>
+            <button type="button" class="interest-chip" data-val="Movies">🎬 Movies & Shows</button>
+            <button type="button" class="interest-chip" data-val="Sports">⚽ Sports & Fitness</button>
+            <button type="button" class="interest-chip" data-val="Casual">☕ Casual Hangout</button>
+          </div>
+        </div>
+
+        <!-- Step 2: College / University -->
+        <div class="field">
+          <label for="onboarding-college-input" class="field-label">2. YOUR COLLEGE / UNIVERSITY (Optional)</label>
+          <input type="text" id="onboarding-college-input" class="field-input" placeholder="e.g. IIT Delhi, DTU, Stanford, SRM..." maxlength="100" />
+        </div>
+
+        <!-- Step 3: Profile Visibility -->
+        <div class="field">
+          <label class="field-label">3. PROFILE PRIVACY</label>
+          <div class="privacy-toggle-box">
+            <label class="privacy-option">
+              <input type="radio" name="onboarding-privacy" value="public" checked />
+              <div class="privacy-opt-text">
+                <strong>🌐 Public Profile (Recommended)</strong>
+                <span>Allows users with matching topics or college to discover you & connect.</span>
+              </div>
+            </label>
+            <label class="privacy-option">
+              <input type="radio" name="onboarding-privacy" value="private" />
+              <div class="privacy-opt-text">
+                <strong>🔒 Private Profile</strong>
+                <span>Only username and avatar visible. College and interests remain private.</span>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary" id="onboarding-submit-btn" style="margin-top:0.5rem;">🚀 Save & Explore Kothaa</button>
+      </form>
+    </div>
+  </div>
+
   <!-- User Profile Card Popup Modal -->
   <div id="user-profile-modal" class="modal-overlay hidden">
     <div class="modal-card profile-card-modal">
@@ -584,9 +738,26 @@
         <div class="profile-modal-avatar-wrap">
           <img id="profile-modal-avatar" class="user-avatar large" src="" alt="Avatar" />
         </div>
-        <h2 id="profile-modal-username">Username</h2>
-        <span id="profile-modal-status-text" class="sub" style="font-weight: 600; margin-bottom: 0.5rem;">🟢 Online</span>
+        <div style="display:flex; align-items:center; justify-content:center; gap:0.45rem;">
+          <h2 id="profile-modal-username">Username</h2>
+          <span id="profile-modal-privacy-tag" class="privacy-badge">🌐 Public</span>
+        </div>
+        <span id="profile-modal-status-text" class="sub" style="font-weight: 600; margin-bottom: 0.35rem;">🟢 Online</span>
+        
+        <p id="profile-modal-college" class="profile-college-text hidden">🎓 <span id="profile-modal-college-name"></span></p>
         <p id="profile-modal-bio" class="profile-bio-text">No bio provided yet.</p>
+
+        <!-- Shared match highlight -->
+        <div id="profile-modal-shared-match" class="shared-match-box hidden">
+          <span class="match-icon">🎯</span>
+          <span id="profile-modal-shared-text">2 Shared Interests</span>
+        </div>
+
+        <!-- Topics & Interests list -->
+        <div id="profile-modal-interests-wrap" class="profile-modal-interests hidden">
+          <span class="field-label" style="font-size:0.75rem; margin-bottom:0.3rem;">Interests & Topics:</span>
+          <div id="profile-modal-interests-list" class="profile-chips-row"></div>
+        </div>
         
         <div class="profile-modal-actions">
           <button id="profile-modal-dm-btn" class="btn btn-primary">💬 Direct Message</button>
